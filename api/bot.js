@@ -60,9 +60,16 @@ const sheetsConfig = {
   },
 };
 
-// ==========================================
-// БАЗОВІ ФУНКЦІЇ ТА МЕНЮ
-// ==========================================
+// Розклад дзвінків
+const timeMap = {
+  1: "08:30 - 09:50",
+  2: "10:00 - 11:20",
+  3: "11:30 - 12:50",
+  4: "13:30 - 14:50",
+  5: "15:00 - 16:20",
+  6: "16:30 - 17:50",
+};
+
 async function getSheetData(sheetId, gid = "0") {
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
   const response = await fetch(url);
@@ -70,11 +77,9 @@ async function getSheetData(sheetId, gid = "0") {
   return textData.split("\n");
 }
 
-bot.command("test", (ctx) =>
-  ctx.reply("Привіт! Я працюю прямо з твого комп'ютера!"),
-);
+bot.command("test", (ctx) => ctx.reply("Привіт! Я працюю на серверах Vercel!"));
 
-bot.command("menu", (ctx) => {
+bot.command("start", (ctx) => {
   return ctx.reply(
     "Оберіть день тижня:",
     Markup.keyboard([
@@ -85,24 +90,50 @@ bot.command("menu", (ctx) => {
   );
 });
 
-// ==========================================
-// УНІВЕРСАЛЬНА ФУНКЦІЯ ОТРИМАННЯ РОЗКЛАДУ
-// ==========================================
 async function sendSchedule(ctx, dayKey, dayName) {
   try {
     const sheetId = sheetsConfig[dayKey].id;
-    const gid = sheetsConfig[dayKey].sheets.it;
-    const rows = await getSheetData(sheetId, gid);
+    const subjGid = sheetsConfig[dayKey].sheets.it;
+    const audGid = sheetsConfig[dayKey].sheets.audience;
 
-    // Поки що група зафіксована, але потім ми зможемо брати її з налаштувань користувача
     const targetGroup = "307-К";
+
+    // Завантажуємо ОБИДВІ таблиці одночасно
+    const [subjRows, audRows] = await Promise.all([
+      getSheetData(sheetId, subjGid),
+      getSheetData(sheetId, audGid),
+    ]);
+
+    // ==========================================
+    // СУПЕР-ФІЧА: ШУКАЄМО ДАТУ В ТАБЛИЦІ
+    // ==========================================
+    let targetDate = "";
+    // Скануємо перші 10 рядків таблиці
+    for (let i = 0; i < Math.min(10, subjRows.length); i++) {
+      const columns = subjRows[i].split(",");
+      for (let col of columns) {
+        const cleanCol = col.replace(/"/g, "").trim(); // Очищаємо від лапок
+        // Якщо клітинка містить слово "на " і рік (наприклад, 2024, 2025, 2026)
+        if (
+          cleanCol.toLowerCase().includes("на ") &&
+          cleanCol.includes("202")
+        ) {
+          targetDate = cleanCol.replace(/^на\s+/i, ""); // Прибираємо "на " на початку
+          break;
+        }
+      }
+      if (targetDate) break; // Знайшли — зупиняємо пошук
+    }
+
+    // Якщо раптом секретар забув вписати дату, фолбек на просто день тижня
+    if (!targetDate) targetDate = dayName;
 
     let groupCol = -1;
     let startRow = -1;
 
-    // КРОК 1: ШУКАЄМО ГРУПУ
-    for (let i = 0; i < rows.length; i++) {
-      const columns = rows[i].split(",");
+    // Шукаємо колонку нашої групи
+    for (let i = 0; i < subjRows.length; i++) {
+      const columns = subjRows[i].split(",");
       for (let j = 0; j < columns.length; j++) {
         if (columns[j].trim() === targetGroup) {
           groupCol = j;
@@ -114,22 +145,21 @@ async function sendSchedule(ctx, dayKey, dayName) {
     }
 
     if (groupCol === -1) {
-      return ctx.reply(
-        `Групу ${targetGroup} не знайдено в таблиці за ${dayName}.`,
-      );
+      return ctx.reply(`Групу ${targetGroup} не знайдено в таблиці.`);
     }
 
-    // КРОК 2: ЧИТАЄМО ПАРИ
-    let replyText = `🗓 Розклад на ${dayName} для ${targetGroup}:\n\n`;
+    // Додаємо знайдену дату в заголовок!
+    let replyText = `🗓 Розклад на **${targetDate}** для ${targetGroup}:\n\n`;
 
-    const headers = rows[startRow - 1].split(",");
+    const headers = subjRows[startRow - 1].split(",");
     const activeGroups = [];
     for (let j = 1; j < headers.length; j++) {
       if (headers[j].trim() !== "") activeGroups.push(j);
     }
 
-    for (let i = startRow; i < rows.length; i++) {
-      const columns = rows[i].split(",");
+    // Читаємо розклад
+    for (let i = startRow; i < subjRows.length; i++) {
+      const columns = subjRows[i].split(",");
       const pairNum = columns[0].trim();
 
       if (!["1", "2", "3", "4", "5", "6"].includes(pairNum)) {
@@ -143,73 +173,74 @@ async function sendSchedule(ctx, dayKey, dayName) {
         break;
       }
 
-      // Беремо пару для нашої групи
       let lesson = columns[groupCol] ? columns[groupCol].trim() : "";
       let lessonType = "🧩 Практика";
+      let audColIndex = groupCol;
 
-      // 🛑 СПИСОК ВИНЯТКІВ (Слова, які бот ніколи не буде вважати спільною лекцією)
-      // Ти можеш додавати сюди будь-які частини назв предметів
-      const ignoredSubjects = ["Іноземна", "Фізична культура", "Англ"];
+      const ignoredSubjects = [
+        "Іноземна",
+        "Фізична культура",
+        "Англ",
+        "Основи метрологічної",
+      ];
 
       if (lesson === "-") {
         lesson = "";
-      }
-      // 1. ПЕРЕВІРКА НА ЛЕКЦІЮ (Ми порожні = тягнемо пару зліва)
-      else if (lesson === "") {
+      } else if (lesson === "") {
         for (let k = groupCol - 1; k >= 1; k--) {
           const leftCell = columns[k] ? columns[k].trim() : "";
-
-          // Перевіряємо, чи є в знайденій парі заборонені слова
-          // .some() перевіряє, чи хоч одне слово зі списку є в тексті leftCell
           const isIgnored = ignoredSubjects.some((word) =>
             leftCell.includes(word),
           );
-
           if (leftCell !== "" && leftCell !== "-" && !isIgnored) {
             lesson = leftCell;
             lessonType = "📢 Лекція";
+            audColIndex = k; // Крадемо аудиторію з тієї ж колонки, що і лекцію
             break;
           }
         }
-      }
-      // 2. ПЕРЕВІРКА НА ЛЕКЦІЮ (У нас є пара = перевіряємо СПРАВЖНЬОГО сусіда справа)
-      else {
+      } else {
         const ourIndex = activeGroups.indexOf(groupCol);
         if (ourIndex !== -1 && ourIndex < activeGroups.length - 1) {
           const nextGroupCol = activeGroups[ourIndex + 1];
           const nextGroupCell = columns[nextGroupCol]
             ? columns[nextGroupCol].trim()
             : "";
-
-          // Якщо в сусідів порожньо, але наш предмет у "чорному списку" - ми не лекція!
           const isIgnored = ignoredSubjects.some((word) =>
             lesson.includes(word),
           );
-
           if (nextGroupCell === "" && !isIgnored) {
             lessonType = "📢 Лекція";
           }
         }
       }
 
+      // Шукаємо аудиторію
+      let audience = "";
+      if (lesson !== "" && audRows[i]) {
+        const audColumns = audRows[i].split(",");
+        audience = audColumns[audColIndex]
+          ? audColumns[audColIndex].trim()
+          : "";
+        if (audience === "") audience = "Не вказано";
+      }
+
+      const timeStr = timeMap[pairNum] || "";
+
       if (lesson !== "") {
-        replyText += `📍 Пара ${pairNum} (${lessonType}): ${lesson}\n`;
+        replyText += `🕘 ${timeStr} | Пара ${pairNum}\n📘 ${lesson} (${lessonType})\n🚪 Ауд: ${audience}\n\n`;
       } else {
-        replyText += `📍 Пара ${pairNum}: Вікно\n`;
+        replyText += `🕘 ${timeStr} | Пара ${pairNum}\n🪟 Вікно\n\n`;
       }
     }
 
-    await ctx.reply(replyText);
+    await ctx.replyWithMarkdown(replyText);
   } catch (error) {
-    console.error(`Помилка завантаження розкладу на ${dayName}:`, error);
+    console.error(`Помилка:`, error);
     await ctx.reply("Виникла помилка під час завантаження розкладу.");
   }
 }
 
-// ==========================================
-// ПРИВ'ЯЗКА КНОПОК ТА КОМАНД ДО ФУНКЦІЇ
-// ==========================================
-// Кнопки меню
 bot.hears("понеділок", (ctx) => sendSchedule(ctx, "mon", "Понеділок"));
 bot.hears("вівторок", (ctx) => sendSchedule(ctx, "tue", "Вівторок"));
 bot.hears("середа", (ctx) => sendSchedule(ctx, "wed", "Середу"));
@@ -217,27 +248,15 @@ bot.hears("четвер", (ctx) => sendSchedule(ctx, "thu", "Четвер"));
 bot.hears("п'ятниця", (ctx) => sendSchedule(ctx, "fri", "П'ятницю"));
 bot.hears("субота", (ctx) => sendSchedule(ctx, "sat", "Суботу"));
 
-// Команди
-bot.command("rosklad_mon", (ctx) => sendSchedule(ctx, "mon", "Понеділок"));
-bot.command("rosklad_tue", (ctx) => sendSchedule(ctx, "tue", "Вівторок"));
-bot.command("rosklad_wed", (ctx) => sendSchedule(ctx, "wed", "Середу"));
-bot.command("rosklad_thu", (ctx) => sendSchedule(ctx, "thu", "Четвер"));
-bot.command("rosklad_fri", (ctx) => sendSchedule(ctx, "fri", "П'ятницю"));
-bot.command("rosklad_sat", (ctx) => sendSchedule(ctx, "sat", "Суботу"));
-
 // ==========================================
 // ЗАПУСК ДЛЯ VERCEL (Webhook)
 // ==========================================
 module.exports = async (req, res) => {
   try {
-    // РАДАР: Цей текст має з'явитися в логах Vercel, коли ти пишеш боту
-    console.log("🔔 Отримано запит від Telegram:", req.body.message?.text);
-
     await bot.handleUpdate(req.body);
     res.status(200).send("OK");
   } catch (error) {
-    console.error("❌ Помилка обробки:", error);
-    // Завжди відправляємо 200, щоб Telegram не спамив повторними запитами
+    console.error("❌ Помилка Webhook:", error);
     res.status(200).send("OK");
   }
 };
