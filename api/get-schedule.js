@@ -258,7 +258,7 @@ module.exports = async (req, res) => {
       scheduleArray.push({
         pair: pairNum,
         time: timeMap[pairNum] || "",
-        name: lesson === "" ? "Вікно" : lesson,
+        name: lesson === "" ? "Немає" : lesson,
         type: lesson === "" ? "" : lessonType,
         aud: lesson === "" ? "" : audience,
       });
