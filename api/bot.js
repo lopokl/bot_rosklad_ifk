@@ -105,33 +105,30 @@ async function sendSchedule(ctx, dayKey, dayName) {
     ]);
 
     // ==========================================
-    // СУПЕР-ФІЧА: ШУКАЄМО ДАТУ В ТАБЛИЦІ
+    // ШУКАЄМО ДАТУ В ТАБЛИЦІ
     // ==========================================
     let targetDate = "";
-    // Скануємо перші 10 рядків таблиці
     for (let i = 0; i < Math.min(10, subjRows.length); i++) {
       const columns = subjRows[i].split(",");
       for (let col of columns) {
-        const cleanCol = col.replace(/"/g, "").trim(); // Очищаємо від лапок
-        // Якщо клітинка містить слово "на " і рік (наприклад, 2024, 2025, 2026)
+        const cleanCol = col.replace(/"/g, "").trim();
         if (
           cleanCol.toLowerCase().includes("на ") &&
           cleanCol.includes("202")
         ) {
-          targetDate = cleanCol.replace(/^на\s+/i, ""); // Прибираємо "на " на початку
+          targetDate = cleanCol.replace(/^на\s+/i, "");
           break;
         }
       }
-      if (targetDate) break; // Знайшли — зупиняємо пошук
+      if (targetDate) break;
     }
-
-    // Якщо раптом секретар забув вписати дату, фолбек на просто день тижня
     if (!targetDate) targetDate = dayName;
 
+    // ==========================================
+    // 1. ШУКАЄМО ГРУПУ В ПРЕДМЕТАХ (ВЕРТИКАЛЬНО)
+    // ==========================================
     let groupCol = -1;
     let startRow = -1;
-
-    // Шукаємо колонку нашої групи
     for (let i = 0; i < subjRows.length; i++) {
       const columns = subjRows[i].split(",");
       for (let j = 0; j < columns.length; j++) {
@@ -148,7 +145,19 @@ async function sendSchedule(ctx, dayKey, dayName) {
       return ctx.reply(`Групу ${targetGroup} не знайдено в таблиці.`);
     }
 
-    // Додаємо знайдену дату в заголовок!
+    // ==========================================
+    // 2. ШУКАЄМО ГРУПУ В АУДИТОРІЯХ (ГОРИЗОНТАЛЬНО)
+    // ==========================================
+    let audGroupRow = null; // Тут будемо зберігати рядок з аудиторіями нашої групи
+    for (let i = 0; i < audRows.length; i++) {
+      const columns = audRows[i].split(",");
+      const groupName = columns[0] ? columns[0].replace(/"/g, "").trim() : "";
+      if (groupName === targetGroup) {
+        audGroupRow = columns; // Знайшли рядок (наприклад: ["307-К", "14", "12", ...])
+        break;
+      }
+    }
+
     let replyText = `🗓 Розклад на **${targetDate}** для ${targetGroup}:\n\n`;
 
     const headers = subjRows[startRow - 1].split(",");
@@ -157,7 +166,9 @@ async function sendSchedule(ctx, dayKey, dayName) {
       if (headers[j].trim() !== "") activeGroups.push(j);
     }
 
-    // Читаємо розклад
+    // ==========================================
+    // 3. ЧИТАЄМО ПАРИ
+    // ==========================================
     for (let i = startRow; i < subjRows.length; i++) {
       const columns = subjRows[i].split(",");
       const pairNum = columns[0].trim();
@@ -175,7 +186,6 @@ async function sendSchedule(ctx, dayKey, dayName) {
 
       let lesson = columns[groupCol] ? columns[groupCol].trim() : "";
       let lessonType = "🧩 Практика";
-      let audColIndex = groupCol;
 
       const ignoredSubjects = [
         "Іноземна",
@@ -195,7 +205,6 @@ async function sendSchedule(ctx, dayKey, dayName) {
           if (leftCell !== "" && leftCell !== "-" && !isIgnored) {
             lesson = leftCell;
             lessonType = "📢 Лекція";
-            audColIndex = k; // Крадемо аудиторію з тієї ж колонки, що і лекцію
             break;
           }
         }
@@ -215,14 +224,19 @@ async function sendSchedule(ctx, dayKey, dayName) {
         }
       }
 
-      // Шукаємо аудиторію
-      let audience = "";
-      if (lesson !== "" && audRows[i]) {
-        const audColumns = audRows[i].split(",");
-        audience = audColumns[audColIndex]
-          ? audColumns[audColIndex].trim()
-          : "";
-        if (audience === "") audience = "Не вказано";
+      // ==========================================
+      // НОВИЙ АЛГОРИТМ: БЕРЕМО АУДИТОРІЮ
+      // ==========================================
+      let audience = "Не вказано";
+      if (lesson !== "" && audGroupRow) {
+        const pairIndex = parseInt(pairNum, 10); // Номер пари (1, 2, 3...) співпадає з номером колонки!
+        if (!isNaN(pairIndex) && audGroupRow[pairIndex]) {
+          audience = audGroupRow[pairIndex].replace(/"/g, "").trim();
+        }
+      }
+
+      if (audience === "" || audience === "-") {
+        audience = "Не вказано";
       }
 
       const timeStr = timeMap[pairNum] || "";
