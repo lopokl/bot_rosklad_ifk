@@ -4,6 +4,7 @@ const { kv } = require("@vercel/kv");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
+// Конфігурація таблиць з усіма відділеннями
 const sheetsConfig = {
   mon: { id: "1lok-vuNC6Nx_Dx4w2vhRy8bnR0A6ssq2WUXtClGWj9Q", sheets: { it: "1778922595", finance: "325629102", enterprise: "1587751514", audience: "436522941" } },
   tue: { id: "10UugoyVXw4mwzgFjqO6pnr1v5ofPDQRdjE8NGy_fVRQ", sheets: { it: "1778922595", finance: "325629102", enterprise: "1587751514", audience: "436522941" } },
@@ -26,17 +27,15 @@ async function getSheetData(sheetId, gid = "0") {
 }
 
 // ==========================================
-// НОВА СУПЕР-ФІЧА: АВТО-СКАНЕР ГРУП
+// АВТО-СКАНЕР ГРУП (З таблиці аудиторій)
 // ==========================================
 async function getAvailableGroups() {
   try {
-    // Беремо таблицю аудиторій за понеділок, бо там ідеальний список груп
     const rows = await getSheetData(sheetsConfig.mon.id, sheetsConfig.mon.sheets.audience);
     let groups = [];
     
     for (let row of rows) {
       const firstCell = row.split(",")[0].replace(/"/g, "").trim();
-      // Перевіряємо, чи схоже це на групу (починається з 3 цифр, містить дефіс і букву)
       if (/^\d{3}.*-[А-ЯІЇЄA-Z]/i.test(firstCell)) {
         if (!groups.includes(firstCell)) {
           groups.push(firstCell);
@@ -46,11 +45,10 @@ async function getAvailableGroups() {
     return groups;
   } catch (error) {
     console.error("Помилка сканування груп:", error);
-    return ["306-К", "307-К"]; // Якщо щось піде не так, даємо базові
+    return ["306-К", "307-К"]; 
   }
 }
 
-// Розбиваємо список груп по 3 штуки в ряд для зручності
 function chunkArray(arr, size) {
   const result = [];
   for (let i = 0; i < arr.length; i += size) {
@@ -65,7 +63,7 @@ function chunkArray(arr, size) {
 bot.command("start", async (ctx) => {
   await ctx.reply("🔄 Завантажую актуальний список груп...");
   const groups = await getAvailableGroups();
-  const keyboard = chunkArray(groups, 3); // Робимо ряди по 3 кнопки
+  const keyboard = chunkArray(groups, 3);
   
   return ctx.reply(
     "👋 Привіт! Я бот розкладу. Обери свою групу зі списку нижче:",
@@ -81,7 +79,6 @@ bot.hears("Змінити групу", async (ctx) => {
   return ctx.reply("Обери нову групу:", Markup.keyboard(keyboard).resize());
 });
 
-// АВТОМАТИЧНО ЛОВИМО БУДЬ-ЯКУ ГРУПУ (за допомогою розумного пошуку Regex)
 bot.hears(/^\d{3}.*-[А-ЯІЇЄA-Z]/i, async (ctx) => {
   const group = ctx.message.text.trim();
   const userId = ctx.from.id; 
@@ -104,7 +101,7 @@ bot.command("menu", (ctx) => {
 });
 
 // ==========================================
-// ОСНОВНА ФУНКЦІЯ РОЗКЛАДУ
+// ОСНОВНА ФУНКЦІЯ (Шукає по всіх 3 відділеннях)
 // ==========================================
 async function sendSchedule(ctx, dayKey, dayName) {
   try {
@@ -116,14 +113,45 @@ async function sendSchedule(ctx, dayKey, dayName) {
     }
 
     const sheetId = sheetsConfig[dayKey].id;
-    const subjGid = sheetsConfig[dayKey].sheets.it;
-    const audGid = sheetsConfig[dayKey].sheets.audience;
     
-    const [subjRows, audRows] = await Promise.all([
-      getSheetData(sheetId, subjGid),
-      getSheetData(sheetId, audGid)
+    // Завантажуємо ВСІ таблиці одночасно
+    const [itRows, finRows, entRows, audRows] = await Promise.all([
+      getSheetData(sheetId, sheetsConfig[dayKey].sheets.it),
+      getSheetData(sheetId, sheetsConfig[dayKey].sheets.finance),
+      getSheetData(sheetId, sheetsConfig[dayKey].sheets.enterprise),
+      getSheetData(sheetId, sheetsConfig[dayKey].sheets.audience)
     ]);
 
+    let subjRows = null;
+    let groupCol = -1;
+    let startRow = -1;
+
+    // Масив з таблицями відділень
+    const allDepartments = [itRows, finRows, entRows];
+
+    // КРОК 1: Шукаємо, в якій саме таблиці є наша група
+    for (let deptRows of allDepartments) {
+      for (let i = 0; i < deptRows.length; i++) {
+        const columns = deptRows[i].split(",");
+        for (let j = 0; j < columns.length; j++) {
+          // Очищаємо від лапок для точного співпадіння
+          if (columns[j].replace(/"/g, "").trim() === targetGroup) {
+            groupCol = j;
+            startRow = i + 1;
+            subjRows = deptRows; // Знайшли правильну таблицю відділення!
+            break;
+          }
+        }
+        if (groupCol !== -1) break;
+      }
+      if (groupCol !== -1) break; // Виходимо, якщо знайшли
+    }
+
+    if (groupCol === -1 || !subjRows) {
+      return ctx.reply(`Групу ${targetGroup} не знайдено в жодному відділенні на ${dayName}. Можливо, в неї сьогодні немає пар?`);
+    }
+
+    // КРОК 2: Шукаємо дату в тій таблиці, де знайшли групу
     let targetDate = "";
     for (let i = 0; i < Math.min(10, subjRows.length); i++) {
       const columns = subjRows[i].split(",");
@@ -138,24 +166,7 @@ async function sendSchedule(ctx, dayKey, dayName) {
     }
     if (!targetDate) targetDate = dayName;
 
-    let groupCol = -1;
-    let startRow = -1;
-    for (let i = 0; i < subjRows.length; i++) {
-      const columns = subjRows[i].split(",");
-      for (let j = 0; j < columns.length; j++) {
-        if (columns[j].trim() === targetGroup) {
-          groupCol = j;
-          startRow = i + 1;
-          break;
-        }
-      }
-      if (groupCol !== -1) break;
-    }
-
-    if (groupCol === -1) {
-      return ctx.reply(`Групу ${targetGroup} не знайдено в таблиці розкладу на ${dayName}. Можливо, в неї сьогодні немає пар?`);
-    }
-
+    // КРОК 3: Шукаємо аудиторії (по горизонталі в таблиці audRows)
     let audGroupRow = null; 
     for (let i = 0; i < audRows.length; i++) {
       const columns = audRows[i].split(",");
@@ -171,23 +182,24 @@ async function sendSchedule(ctx, dayKey, dayName) {
     const headers = subjRows[startRow - 1].split(",");
     const activeGroups = [];
     for (let j = 1; j < headers.length; j++) {
-      if (headers[j].trim() !== "") activeGroups.push(j);
+      if (headers[j].replace(/"/g, "").trim() !== "") activeGroups.push(j);
     }
 
+    // КРОК 4: Читаємо пари
     for (let i = startRow; i < subjRows.length; i++) {
       const columns = subjRows[i].split(",");
-      const pairNum = columns[0].trim();
+      const pairNum = columns[0].replace(/"/g, "").trim();
 
       if (!["1", "2", "3", "4", "5", "6"].includes(pairNum)) {
         if (pairNum === "") {
-          const hasTextInRow = columns.some((col, index) => index > 0 && col.trim() !== "");
+          const hasTextInRow = columns.some((col, index) => index > 0 && col.replace(/"/g, "").trim() !== "");
           if (hasTextInRow) break;
           continue;
         }
         break;
       }
 
-      let lesson = columns[groupCol] ? columns[groupCol].trim() : "";
+      let lesson = columns[groupCol] ? columns[groupCol].replace(/"/g, "").trim() : "";
       let lessonType = "🧩 Практика";
       const ignoredSubjects = ["Іноземна", "Фізична культура", "Англ", "Основи метрологічної"];
 
@@ -195,7 +207,7 @@ async function sendSchedule(ctx, dayKey, dayName) {
         lesson = "";
       } else if (lesson === "") {
         for (let k = groupCol - 1; k >= 1; k--) {
-          const leftCell = columns[k] ? columns[k].trim() : "";
+          const leftCell = columns[k] ? columns[k].replace(/"/g, "").trim() : "";
           const isIgnored = ignoredSubjects.some((word) => leftCell.includes(word));
           if (leftCell !== "" && leftCell !== "-" && !isIgnored) {
             lesson = leftCell;
@@ -207,7 +219,7 @@ async function sendSchedule(ctx, dayKey, dayName) {
         const ourIndex = activeGroups.indexOf(groupCol);
         if (ourIndex !== -1 && ourIndex < activeGroups.length - 1) {
           const nextGroupCol = activeGroups[ourIndex + 1];
-          const nextGroupCell = columns[nextGroupCol] ? columns[nextGroupCol].trim() : "";
+          const nextGroupCell = columns[nextGroupCol] ? columns[nextGroupCol].replace(/"/g, "").trim() : "";
           const isIgnored = ignoredSubjects.some((word) => lesson.includes(word));
           if (nextGroupCell === "" && !isIgnored) {
             lessonType = "📢 Лекція";
@@ -215,6 +227,7 @@ async function sendSchedule(ctx, dayKey, dayName) {
         }
       }
 
+      // Додаємо аудиторію
       let audience = "Не вказано";
       if (lesson !== "" && audGroupRow) {
         const pairIndex = parseInt(pairNum, 10); 
