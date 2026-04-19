@@ -416,6 +416,27 @@ bot.hears("четвер", (ctx) => sendSchedule(ctx, "thu", "Четвер"));
 bot.hears("п'ятниця", (ctx) => sendSchedule(ctx, "fri", "П'ятницю"));
 bot.hears("субота", (ctx) => sendSchedule(ctx, "sat", "Суботу"));
 
+// ==========================================
+// ОБРОБКА КНОПКИ "РОЗКЛАД НА СЬОГОДНІ"
+// ==========================================
+bot.action(/today_(mon|tue|wed|thu|fri|sat)/, async (ctx) => {
+  const dayKey = ctx.match[1];
+  const daysNames = {
+    mon: "Понеділок",
+    tue: "Вівторок",
+    wed: "Середу",
+    thu: "Четвер",
+    fri: "П'ятницю",
+    sat: "Суботу",
+  };
+
+  // Прибираємо значок "завантаження" з кнопки
+  await ctx.answerCbQuery("Завантажую розклад...");
+
+  // Запускаємо ту саму ідеальну функцію, яку ми написали раніше!
+  await sendSchedule(ctx, dayKey, daysNames[dayKey]);
+});
+
 module.exports = async (req, res) => {
   try {
     await bot.handleUpdate(req.body);
