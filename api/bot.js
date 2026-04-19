@@ -5,18 +5,74 @@ const { kv } = require("@vercel/kv");
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
 const sheetsConfig = {
-  mon: { id: "1lok-vuNC6Nx_Dx4w2vhRy8bnR0A6ssq2WUXtClGWj9Q", sheets: { it: "1778922595", finance: "325629102", enterprise: "1587751514", audience: "436522941" } },
-  tue: { id: "10UugoyVXw4mwzgFjqO6pnr1v5ofPDQRdjE8NGy_fVRQ", sheets: { it: "1778922595", finance: "325629102", enterprise: "1587751514", audience: "436522941" } },
-  wed: { id: "1VvEML21gmiHdYIMB2aq-B9Ea7n8w_F9YrtTsz5mtq50", sheets: { it: "1778922595", finance: "325629102", enterprise: "1587751514", audience: "436522941" } },
-  thu: { id: "1zPrelCai8jGVcZMREDGltl8yIpLGXqr_288uTwtjVG0", sheets: { it: "1778922595", finance: "325629102", enterprise: "1587751514", audience: "436522941" } },
-  fri: { id: "1I0TjCHqnEwaNFQrTaj86z_iII-7i_Xl9s7JiIupEURo", sheets: { it: "1778922595", finance: "325629102", enterprise: "1587751514", audience: "436522941" } },
-  sat: { id: "1Uk4LNAHU22luWeAYIidY5jQ2N5dyGlUrwI2SFphQ3pc", sheets: { it: "1778922595", finance: "325629102", enterprise: "1587751514", audience: "436522941" } },
+  mon: {
+    id: "1lok-vuNC6Nx_Dx4w2vhRy8bnR0A6ssq2WUXtClGWj9Q",
+    sheets: {
+      it: "1778922595",
+      finance: "325629102",
+      enterprise: "1587751514",
+      audience: "436522941",
+    },
+  },
+  tue: {
+    id: "10UugoyVXw4mwzgFjqO6pnr1v5ofPDQRdjE8NGy_fVRQ",
+    sheets: {
+      it: "1778922595",
+      finance: "325629102",
+      enterprise: "1587751514",
+      audience: "436522941",
+    },
+  },
+  wed: {
+    id: "1VvEML21gmiHdYIMB2aq-B9Ea7n8w_F9YrtTsz5mtq50",
+    sheets: {
+      it: "1778922595",
+      finance: "325629102",
+      enterprise: "1587751514",
+      audience: "436522941",
+    },
+  },
+  thu: {
+    id: "1zPrelCai8jGVcZMREDGltl8yIpLGXqr_288uTwtjVG0",
+    sheets: {
+      it: "1778922595",
+      finance: "325629102",
+      enterprise: "1587751514",
+      audience: "436522941",
+    },
+  },
+  fri: {
+    id: "1I0TjCHqnEwaNFQrTaj86z_iII-7i_Xl9s7JiIupEURo",
+    sheets: {
+      it: "1778922595",
+      finance: "325629102",
+      enterprise: "1587751514",
+      audience: "436522941",
+    },
+  },
+  sat: {
+    id: "1Uk4LNAHU22luWeAYIidY5jQ2N5dyGlUrwI2SFphQ3pc",
+    sheets: {
+      it: "1778922595",
+      finance: "325629102",
+      enterprise: "1587751514",
+      audience: "436522941",
+    },
+  },
 };
 
 const timeMap = {
-  "1": "08:30 - 09:50", "2": "10:05 - 11:25", "3": "11:55 - 13:15",
-  "4": "13:30 - 14:50", "5": "15:05 - 16:25", "6": "16:40 - 18:00"
+  1: "08:30 - 09:50",
+  2: "10:00 - 11:20",
+  3: "11:30 - 12:50",
+  4: "13:30 - 14:50",
+  5: "15:00 - 16:20",
+  6: "16:30 - 17:50",
 };
+
+// ==========================================
+// ФУНКЦІЯ ДЛЯ ЗАВАНТАЖЕННЯ ДАНИХ З ТАБЛИЦІ
+// ==========================================
 
 async function getSheetData(sheetId, gid = "0") {
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
@@ -28,10 +84,23 @@ async function getSheetData(sheetId, gid = "0") {
 // 🛡 АВТО-ПЕРЕКЛАДАЧ (Виправляє англійські літери на українські)
 function normalizeGroup(name) {
   const latinToCyrillic = {
-    'A':'А', 'B':'В', 'C':'С', 'E':'Е', 'H':'Н', 'I':'І', 
-    'K':'К', 'M':'М', 'O':'О', 'P':'Р', 'T':'Т', 'X':'Х'
+    A: "А",
+    B: "В",
+    C: "С",
+    E: "Е",
+    H: "Н",
+    I: "І",
+    K: "К",
+    M: "М",
+    O: "О",
+    P: "Р",
+    T: "Т",
+    X: "Х",
   };
-  return name.toUpperCase().replace(/[ABCEHIKMOPTX]/g, m => latinToCyrillic[m]).trim();
+  return name
+    .toUpperCase()
+    .replace(/[ABCEHIKMOPTX]/g, (m) => latinToCyrillic[m])
+    .trim();
 }
 
 // ==========================================
@@ -39,7 +108,10 @@ function normalizeGroup(name) {
 // ==========================================
 async function getAvailableGroups() {
   try {
-    const rows = await getSheetData(sheetsConfig.mon.id, sheetsConfig.mon.sheets.audience);
+    const rows = await getSheetData(
+      sheetsConfig.mon.id,
+      sheetsConfig.mon.sheets.audience,
+    );
     let groups = [];
     for (let row of rows) {
       const firstCell = row.split(",")[0].replace(/"/g, "").trim();
@@ -49,7 +121,7 @@ async function getAvailableGroups() {
     }
     return groups;
   } catch (error) {
-    return ["306-К", "307-К"]; 
+    return ["306-К", "307-К"];
   }
 }
 
@@ -68,14 +140,20 @@ bot.command("start", async (ctx) => {
   if (ctx.chat.type !== "private") return; // В групах /start не показує кнопки
   await ctx.reply("🔄 Завантажую список...");
   const groups = await getAvailableGroups();
-  return ctx.reply("Обери свою групу:", Markup.keyboard(chunkArray(groups, 3)).resize());
+  return ctx.reply(
+    "Обери свою групу:",
+    Markup.keyboard(chunkArray(groups, 3)).resize(),
+  );
 });
 
 bot.hears("Змінити групу", async (ctx) => {
   if (ctx.chat.type !== "private") return;
   await ctx.reply("🔄 Завантажую список...");
   const groups = await getAvailableGroups();
-  return ctx.reply("Обери нову групу:", Markup.keyboard(chunkArray(groups, 3)).resize());
+  return ctx.reply(
+    "Обери нову групу:",
+    Markup.keyboard(chunkArray(groups, 3)).resize(),
+  );
 });
 
 // Реєстрація в приватному чаті
@@ -83,11 +161,17 @@ bot.hears(/^\d{3}.*-[А-ЯІЇЄA-Z]/i, async (ctx) => {
   if (ctx.chat.type !== "private") return;
   const group = normalizeGroup(ctx.message.text);
   await kv.set(`user_${ctx.from.id}`, group);
-  return ctx.reply(`✅ Збережено: **${group}**.\nТисни /menu`, { parse_mode: "Markdown" });
+  return ctx.reply(`✅ Збережено: **${group}**.\nТисни /menu`, {
+    parse_mode: "Markdown",
+  });
 });
 
 bot.command("menu", (ctx) => {
-  const kb = [["понеділок", "вівторок"], ["середа", "четвер", "п'ятниця"], ["субота"]];
+  const kb = [
+    ["понеділок", "вівторок"],
+    ["середа", "четвер", "п'ятниця"],
+    ["субота"],
+  ];
   if (ctx.chat.type === "private") kb.push(["Змінити групу"]);
   return ctx.reply("Оберіть день тижня:", Markup.keyboard(kb).resize());
 });
@@ -107,16 +191,24 @@ bot.command("setgroups", async (ctx) => {
 
   const args = ctx.message.text.split(" ").slice(1).join(" ");
   if (!args) {
-    return ctx.reply("Вкажіть групи. Приклад:\n`/setgroups 306-К, 101-О`", { parse_mode: "Markdown" });
+    return ctx.reply("Вкажіть групи. Приклад:\n`/setgroups 306-К, 101-О`", {
+      parse_mode: "Markdown",
+    });
   }
 
   // Розділяємо і по комах, і по пробілах, щоб точно зловити все!
-  const groups = args.split(/[, ]+/).filter(g => g).map(normalizeGroup);
+  const groups = args
+    .split(/[, ]+/)
+    .filter((g) => g)
+    .map(normalizeGroup);
 
   await kv.set(`chat_${ctx.chat.id}_groups`, groups);
   await kv.sadd("active_chats", ctx.chat.id); // Для будильника
 
-  return ctx.reply(`✅ Збережено! Групи для цього чату: **${groups.join(", ")}**`, { parse_mode: "Markdown" });
+  return ctx.reply(
+    `✅ Збережено! Групи для цього чату: **${groups.join(", ")}**`,
+    { parse_mode: "Markdown" },
+  );
 });
 
 // ==========================================
@@ -126,18 +218,20 @@ async function sendSchedule(ctx, dayKey, dayName) {
   try {
     let targetGroups = [];
     let chatModeText = "";
-    
+
     // БРОНЯ: Точно визначаємо тип чату
     if (ctx.chat.type === "private") {
       chatModeText = "👤 Приватний чат";
       const userGroup = await kv.get(`user_${ctx.from.id}`);
-      if (!userGroup) return ctx.reply("⚠️ Ти ще не обрав групу! Натисни /start.");
+      if (!userGroup)
+        return ctx.reply("⚠️ Ти ще не обрав групу! Натисни /start.");
       targetGroups = [userGroup];
     } else {
       chatModeText = "👥 Груповий чат";
       const chatGroups = await kv.get(`chat_${ctx.chat.id}_groups`);
-      if (!chatGroups || chatGroups.length === 0) return ctx.reply("Адмін ще не налаштував групи. Введіть /setgroups");
-      targetGroups = chatGroups; 
+      if (!chatGroups || chatGroups.length === 0)
+        return ctx.reply("Адмін ще не налаштував групи. Введіть /setgroups");
+      targetGroups = chatGroups;
     }
 
     const sheetId = sheetsConfig[dayKey].id;
@@ -145,7 +239,7 @@ async function sendSchedule(ctx, dayKey, dayName) {
       getSheetData(sheetId, sheetsConfig[dayKey].sheets.it),
       getSheetData(sheetId, sheetsConfig[dayKey].sheets.finance),
       getSheetData(sheetId, sheetsConfig[dayKey].sheets.enterprise),
-      getSheetData(sheetId, sheetsConfig[dayKey].sheets.audience)
+      getSheetData(sheetId, sheetsConfig[dayKey].sheets.audience),
     ]);
 
     const allDepartments = [itRows, finRows, entRows];
@@ -154,13 +248,16 @@ async function sendSchedule(ctx, dayKey, dayName) {
     for (let i = 0; i < Math.min(10, itRows.length); i++) {
       const columns = itRows[i].split(",");
       for (let col of columns) {
-        const cleanCol = col.replace(/"/g, "").trim(); 
-        if (cleanCol.toLowerCase().includes("на ") && cleanCol.includes("202")) {
-          targetDate = cleanCol.replace(/^на\s+/i, ""); 
+        const cleanCol = col.replace(/"/g, "").trim();
+        if (
+          cleanCol.toLowerCase().includes("на ") &&
+          cleanCol.includes("202")
+        ) {
+          targetDate = cleanCol.replace(/^на\s+/i, "");
           break;
         }
       }
-      if (targetDate) break; 
+      if (targetDate) break;
     }
     if (!targetDate) targetDate = dayName;
 
@@ -191,15 +288,17 @@ async function sendSchedule(ctx, dayKey, dayName) {
 
       if (groupCol === -1 || !subjRows) {
         finalMessage += `🔥 **${currentGroup}**\n❌ Пар немає або групу не знайдено.\n\n`;
-        continue; 
+        continue;
       }
 
-      let audGroupRow = null; 
+      let audGroupRow = null;
       for (let i = 0; i < audRows.length; i++) {
         const columns = audRows[i].split(",");
-        const groupName = columns[0] ? normalizeGroup(columns[0].replace(/"/g, "")) : "";
+        const groupName = columns[0]
+          ? normalizeGroup(columns[0].replace(/"/g, ""))
+          : "";
         if (groupName === currentGroup) {
-          audGroupRow = columns; 
+          audGroupRow = columns;
           break;
         }
       }
@@ -218,23 +317,36 @@ async function sendSchedule(ctx, dayKey, dayName) {
 
         if (!["1", "2", "3", "4", "5", "6"].includes(pairNum)) {
           if (pairNum === "") {
-            const hasTextInRow = columns.some((col, index) => index > 0 && col.replace(/"/g, "").trim() !== "");
+            const hasTextInRow = columns.some(
+              (col, index) => index > 0 && col.replace(/"/g, "").trim() !== "",
+            );
             if (hasTextInRow) break;
             continue;
           }
           break;
         }
 
-        let lesson = columns[groupCol] ? columns[groupCol].replace(/"/g, "").trim() : "";
+        let lesson = columns[groupCol]
+          ? columns[groupCol].replace(/"/g, "").trim()
+          : "";
         let lessonType = "🧩 Практика";
-        const ignoredSubjects = ["Іноземна", "Фізична культура", "Англ", "Основи метрологічної"];
+        const ignoredSubjects = [
+          "Іноземна",
+          "Фізична культура",
+          "Англ",
+          "Основи метрологічної",
+        ];
 
         if (lesson === "-") {
           lesson = "";
         } else if (lesson === "") {
           for (let k = groupCol - 1; k >= 1; k--) {
-            const leftCell = columns[k] ? columns[k].replace(/"/g, "").trim() : "";
-            const isIgnored = ignoredSubjects.some((word) => leftCell.includes(word));
+            const leftCell = columns[k]
+              ? columns[k].replace(/"/g, "").trim()
+              : "";
+            const isIgnored = ignoredSubjects.some((word) =>
+              leftCell.includes(word),
+            );
             if (leftCell !== "" && leftCell !== "-" && !isIgnored) {
               lesson = leftCell;
               lessonType = "📢 Лекція";
@@ -245,8 +357,12 @@ async function sendSchedule(ctx, dayKey, dayName) {
           const ourIndex = activeGroups.indexOf(groupCol);
           if (ourIndex !== -1 && ourIndex < activeGroups.length - 1) {
             const nextGroupCol = activeGroups[ourIndex + 1];
-            const nextGroupCell = columns[nextGroupCol] ? columns[nextGroupCol].replace(/"/g, "").trim() : "";
-            const isIgnored = ignoredSubjects.some((word) => lesson.includes(word));
+            const nextGroupCell = columns[nextGroupCol]
+              ? columns[nextGroupCol].replace(/"/g, "").trim()
+              : "";
+            const isIgnored = ignoredSubjects.some((word) =>
+              lesson.includes(word),
+            );
             if (nextGroupCell === "" && !isIgnored) {
               lessonType = "📢 Лекція";
             }
@@ -255,12 +371,12 @@ async function sendSchedule(ctx, dayKey, dayName) {
 
         let audience = "Не вказано";
         if (lesson !== "" && audGroupRow) {
-          const pairIndex = parseInt(pairNum, 10); 
+          const pairIndex = parseInt(pairNum, 10);
           if (!isNaN(pairIndex) && audGroupRow[pairIndex]) {
             audience = audGroupRow[pairIndex].replace(/"/g, "").trim();
           }
         }
-        
+
         if (audience === "" || audience === "-") audience = "Не вказано";
         const timeStr = timeMap[pairNum] || "";
 
@@ -278,12 +394,15 @@ async function sendSchedule(ctx, dayKey, dayName) {
     if (ctx.chat.type !== "private") {
       const oldMsgId = await kv.get(`chat_${ctx.chat.id}_pinned_msg`);
       if (oldMsgId) {
-        try { await ctx.telegram.unpinChatMessage(ctx.chat.id, oldMsgId); } catch (e) {}
+        try {
+          await ctx.telegram.unpinChatMessage(ctx.chat.id, oldMsgId);
+        } catch (e) {}
       }
-      await ctx.telegram.pinChatMessage(ctx.chat.id, sentMsg.message_id, { disable_notification: true });
+      await ctx.telegram.pinChatMessage(ctx.chat.id, sentMsg.message_id, {
+        disable_notification: true,
+      });
       await kv.set(`chat_${ctx.chat.id}_pinned_msg`, sentMsg.message_id);
     }
-
   } catch (error) {
     console.error(`Помилка:`, error);
     await ctx.reply("Виникла помилка під час завантаження розкладу.");
