@@ -119,46 +119,202 @@ bot.command("setgroups", async (ctx) => {
 });
 
 // ==========================================
-// ОСНОВНА ФУНКЦІЯ ЗАКРІПЛЕННЯ
+// ОСНОВНА ФУНКЦІЯ (З підтримкою груп та закріпленням)
 // ==========================================
 async function sendSchedule(ctx, dayKey, dayName) {
   try {
     let targetGroups = [];
 
-    // Якщо це група - беремо групи для групи. Якщо приватний чат - беремо для юзера.
+    // 1. Визначаємо, для кого шукаємо розклад (один юзер чи ціла група)
     if (ctx.chat.type === "private") {
       const userGroup = await kv.get(`user_${ctx.from.id}`);
-      if (!userGroup) return ctx.reply("Ти ще не обрав групу! Натисни /start.");
-      targetGroups = [userGroup];
+      if (!userGroup)
+        return ctx.reply(
+          "⚠️ Ти ще не обрав групу! Натисни /start, щоб вибрати її.",
+        );
+      targetGroups = [userGroup]; // Робимо масив з однієї групи
     } else {
       const chatGroups = await kv.get(`chat_${ctx.chat.id}_groups`);
       if (!chatGroups || chatGroups.length === 0)
         return ctx.reply(
           "Адміністратор ще не налаштував групи. Використайте /setgroups",
         );
-      targetGroups = chatGroups;
+      targetGroups = chatGroups; // Масив з кількох груп
     }
 
-    // ТУТ МАЄ БУТИ ТВОЯ ЛОГІКА ЗАВАНТАЖЕННЯ РОЗКЛАДУ...
-    // (Для кожної групи з масиву targetGroups формуємо текст. Я скорочую код для прикладу,
-    // ти використовуєш свою стару ідеальну логіку генерації повідомлення)
+    const sheetId = sheetsConfig[dayKey].id;
 
-    let finalMessage = `🗓 Розклад на ${dayName}:\n\n`;
-    for (let group of targetGroups) {
-      finalMessage += `🔥 **Група ${group}**\nТут буде розклад...\n\n`; // Сюди підстав свій генератор
+    // 2. Завантажуємо ВСІ таблиці одночасно лише один раз
+    const [itRows, finRows, entRows, audRows] = await Promise.all([
+      getSheetData(sheetId, sheetsConfig[dayKey].sheets.it),
+      getSheetData(sheetId, sheetsConfig[dayKey].sheets.finance),
+      getSheetData(sheetId, sheetsConfig[dayKey].sheets.enterprise),
+      getSheetData(sheetId, sheetsConfig[dayKey].sheets.audience),
+    ]);
+
+    const allDepartments = [itRows, finRows, entRows];
+
+    // 3. Шукаємо дату в заголовку (достатньо знайти один раз)
+    let targetDate = "";
+    for (let i = 0; i < Math.min(10, itRows.length); i++) {
+      const columns = itRows[i].split(",");
+      for (let col of columns) {
+        const cleanCol = col.replace(/"/g, "").trim();
+        if (
+          cleanCol.toLowerCase().includes("на ") &&
+          cleanCol.includes("202")
+        ) {
+          targetDate = cleanCol.replace(/^на\s+/i, "");
+          break;
+        }
+      }
+      if (targetDate) break;
+    }
+    if (!targetDate) targetDate = dayName;
+
+    // Починаємо формувати фінальне повідомлення
+    let finalMessage = `🗓 Розклад на **${targetDate}**:\n\n`;
+
+    // ==========================================
+    // 4. ЦИКЛ: ПРОХОДИМОСЯ ПО КОЖНІЙ ГРУПІ З НАЛАШТУВАНЬ
+    // ==========================================
+    for (let currentGroup of targetGroups) {
+      let subjRows = null;
+      let groupCol = -1;
+      let startRow = -1;
+
+      // КРОК 4.1: Шукаємо, в якій саме таблиці є ЦЯ група
+      for (let deptRows of allDepartments) {
+        for (let i = 0; i < deptRows.length; i++) {
+          const columns = deptRows[i].split(",");
+          for (let j = 0; j < columns.length; j++) {
+            if (columns[j].replace(/"/g, "").trim() === currentGroup) {
+              groupCol = j;
+              startRow = i + 1;
+              subjRows = deptRows;
+              break;
+            }
+          }
+          if (groupCol !== -1) break;
+        }
+        if (groupCol !== -1) break;
+      }
+
+      // Якщо раптом групи немає сьогодні в розкладі
+      if (groupCol === -1 || !subjRows) {
+        finalMessage += `🔥 **${currentGroup}**\n❌ Пар немає або групу не знайдено.\n\n`;
+        continue; // Переходимо до наступної групи зі списку
+      }
+
+      // КРОК 4.2: Шукаємо аудиторії для ЦІЄЇ групи
+      let audGroupRow = null;
+      for (let i = 0; i < audRows.length; i++) {
+        const columns = audRows[i].split(",");
+        const groupName = columns[0] ? columns[0].replace(/"/g, "").trim() : "";
+        if (groupName === currentGroup) {
+          audGroupRow = columns;
+          break;
+        }
+      }
+
+      const headers = subjRows[startRow - 1].split(",");
+      const activeGroups = [];
+      for (let j = 1; j < headers.length; j++) {
+        if (headers[j].replace(/"/g, "").trim() !== "") activeGroups.push(j);
+      }
+
+      // Додаємо заголовок групи у повідомлення
+      finalMessage += `🔥 **${currentGroup}**\n`;
+
+      // КРОК 4.3: Читаємо пари для ЦІЄЇ групи
+      for (let i = startRow; i < subjRows.length; i++) {
+        const columns = subjRows[i].split(",");
+        const pairNum = columns[0].replace(/"/g, "").trim();
+
+        if (!["1", "2", "3", "4", "5", "6"].includes(pairNum)) {
+          if (pairNum === "") {
+            const hasTextInRow = columns.some(
+              (col, index) => index > 0 && col.replace(/"/g, "").trim() !== "",
+            );
+            if (hasTextInRow) break;
+            continue;
+          }
+          break;
+        }
+
+        let lesson = columns[groupCol]
+          ? columns[groupCol].replace(/"/g, "").trim()
+          : "";
+        let lessonType = "🧩 Практика";
+        const ignoredSubjects = [
+          "Іноземна",
+          "Фізична культура",
+          "Англ",
+          "Основи метрологічної",
+        ];
+
+        if (lesson === "-") {
+          lesson = "";
+        } else if (lesson === "") {
+          for (let k = groupCol - 1; k >= 1; k--) {
+            const leftCell = columns[k]
+              ? columns[k].replace(/"/g, "").trim()
+              : "";
+            const isIgnored = ignoredSubjects.some((word) =>
+              leftCell.includes(word),
+            );
+            if (leftCell !== "" && leftCell !== "-" && !isIgnored) {
+              lesson = leftCell;
+              lessonType = "📢 Лекція";
+              break;
+            }
+          }
+        } else {
+          const ourIndex = activeGroups.indexOf(groupCol);
+          if (ourIndex !== -1 && ourIndex < activeGroups.length - 1) {
+            const nextGroupCol = activeGroups[ourIndex + 1];
+            const nextGroupCell = columns[nextGroupCol]
+              ? columns[nextGroupCol].replace(/"/g, "").trim()
+              : "";
+            const isIgnored = ignoredSubjects.some((word) =>
+              lesson.includes(word),
+            );
+            if (nextGroupCell === "" && !isIgnored) {
+              lessonType = "📢 Лекція";
+            }
+          }
+        }
+
+        let audience = "Не вказано";
+        if (lesson !== "" && audGroupRow) {
+          const pairIndex = parseInt(pairNum, 10);
+          if (!isNaN(pairIndex) && audGroupRow[pairIndex]) {
+            audience = audGroupRow[pairIndex].replace(/"/g, "").trim();
+          }
+        }
+
+        if (audience === "" || audience === "-") {
+          audience = "Не вказано";
+        }
+
+        const timeStr = timeMap[pairNum] || "";
+
+        if (lesson !== "") {
+          finalMessage += `🕘 ${timeStr} | Пара ${pairNum}\n📘 ${lesson} (${lessonType})\n🚪 Ауд: ${audience}\n\n`;
+        } else {
+          finalMessage += `🕘 ${timeStr} | Пара ${pairNum}\n🪟 Вікно\n\n`;
+        }
+      }
     }
 
-    // ВІДПРАВЛЯЄМО ПОВІДОМЛЕННЯ
-    const sentMsg = await ctx.reply(finalMessage, { parse_mode: "Markdown" });
+    // ==========================================
+    // 5. ВІДПРАВЛЯЄМО ТА ЗАКРІПЛЮЄМО
+    // ==========================================
+    const sentMsg = await ctx.replyWithMarkdown(finalMessage);
 
-    // ==========================================
-    // ЛОГІКА ЗАКРІПЛЕННЯ ТА ВІДКРІПЛЕННЯ
-    // ==========================================
     if (ctx.chat.type !== "private") {
-      // 1. Шукаємо в базі старе закріплене повідомлення
       const oldMsgId = await kv.get(`chat_${ctx.chat.id}_pinned_msg`);
 
-      // 2. Якщо воно є - відкріплюємо його (щоб не засмічувати чат)
       if (oldMsgId) {
         try {
           await ctx.telegram.unpinChatMessage(ctx.chat.id, oldMsgId);
@@ -167,12 +323,9 @@ async function sendSchedule(ctx, dayKey, dayName) {
         }
       }
 
-      // 3. Закріплюємо нове повідомлення (disable_notification: true щоб не пікало всім зайвий раз)
       await ctx.telegram.pinChatMessage(ctx.chat.id, sentMsg.message_id, {
         disable_notification: true,
       });
-
-      // 4. Записуємо ID нового повідомлення в базу, щоб відкріпити його завтра
       await kv.set(`chat_${ctx.chat.id}_pinned_msg`, sentMsg.message_id);
     }
   } catch (error) {
