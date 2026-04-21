@@ -146,6 +146,28 @@ bot.command("start", async (ctx) => {
   );
 });
 
+// ==========================================
+// КОМАНДА АДМІНІСТРАТОРА
+// ==========================================
+bot.command("admin_test", (ctx) => {
+  // Перевіряємо, чи ID користувача збігається з твоїм ADMIN_ID з Vercel
+  if (String(ctx.from.id) === process.env.ADMIN_ID) {
+    return ctx.reply(
+      "👑 Вітаю, пане Адміністратор! Ваша панель готова:",
+      Markup.inlineKeyboard([
+        // ОБОВ'ЯЗКОВО ЗАМІНИ ПОСИЛАННЯ НА СВІЙ VERCEL:
+        Markup.button.webApp(
+          "⚙️ Відкрити Адмінку",
+          "https://bot-rosklad-ifk.vercel.app/admin.html",
+        ),
+      ]),
+    );
+  } else {
+    // Якщо хтось інший введе /admin, бот прикинеться дурником
+    return ctx.reply("Я не розумію цю команду 🤷‍♂️");
+  }
+});
+
 bot.hears("Змінити групу", async (ctx) => {
   if (ctx.chat.type !== "private") return;
   await ctx.reply("🔄 Завантажую список...");
@@ -381,9 +403,17 @@ async function sendSchedule(ctx, dayKey, dayName) {
         const timeStr = timeMap[pairNum] || "";
 
         if (lesson !== "") {
-          finalMessage += `🕘 ${timeStr} | Пара ${pairNum}\n📘 ${lesson} (${lessonType})\n🚪 Ауд: ${audience}\n\n`;
+          // дизайн основний
+          finalMessage += `🔹 *Пара ${pairNum}* |  ⏳ _${timeStr}_\n`;
+          finalMessage += `📚 *${lesson}*\n`;
+          finalMessage += `🏷 Формат: _${lessonType}_\n`;
+          finalMessage += `🚪 Аудиторія: \`${audience}\`\n`;
+          finalMessage += `➖➖➖➖➖➖➖➖➖➖\n`; // Розділювач між парами
         } else {
-          finalMessage += `🕘 ${timeStr} | Пара ${pairNum}\n🪟 Вікно\n\n`;
+          // Дизайн для немає пари
+          finalMessage += `🔸 *Пара ${pairNum}* |  ⏳ _${timeStr}_\n`;
+          finalMessage += `☕ _Немає пари_\n`;
+          finalMessage += `➖➖➖➖➖➖➖➖➖➖\n`;
         }
       }
     }

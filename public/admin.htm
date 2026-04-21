@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Адмін Панель</title>
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+            body {
+                background-color: var(--tg-theme-bg-color, #1f2937);
+                color: var(--tg-theme-text-color, #ffffff);
+            }
+            .tg-card {
+                background-color: var(--tg-theme-secondary-bg-color, #374151);
+            }
+            .tg-btn {
+                background-color: var(--tg-theme-button-color, #3b82f6);
+                color: var(--tg-theme-button-text-color, #ffffff);
+            }
+        </style>
+    </head>
+    <body class="p-5 antialiased">
+        <div class="max-w-md mx-auto">
+            <h1 class="text-2xl font-extrabold mb-2 text-red-500">
+                👑 Панель Адміна
+            </h1>
+            <p class="text-sm opacity-70 mb-6">Тут ти можеш керувати ботом.</p>
+
+            <div class="tg-card p-4 rounded-2xl shadow-sm mb-4">
+                <h2 class="font-bold mb-2">📢 Масова розсилка</h2>
+                <p class="text-xs opacity-70 mb-3">
+                    Це повідомлення отримають УСІ студенти, які обрали групу в
+                    боті.
+                </p>
+
+                <textarea
+                    id="broadcastMsg"
+                    rows="4"
+                    class="w-full p-3 rounded-xl bg-black/20 border border-gray-500/30 outline-none focus:border-blue-500 mb-3"
+                    placeholder="Введіть текст оголошення..."
+                ></textarea>
+
+                <button
+                    id="sendBtn"
+                    onclick="sendBroadcast()"
+                    class="tg-btn w-full py-3 rounded-xl font-bold shadow-md"
+                >
+                    Відправити всім
+                </button>
+            </div>
+
+            <div id="status" class="text-center font-bold text-sm"></div>
+        </div>
+
+        <script>
+            const tg = window.Telegram.WebApp;
+            tg.expand();
+            tg.ready();
+
+            async function sendBroadcast() {
+                const msg = document.getElementById("broadcastMsg").value;
+                const btn = document.getElementById("sendBtn");
+                const status = document.getElementById("status");
+
+                if (!msg.trim()) {
+                    tg.showAlert("Введіть текст повідомлення!");
+                    return;
+                }
+
+                // Отримуємо твій ID з Telegram
+                const adminId = tg.initDataUnsafe?.user?.id;
+                if (!adminId) {
+                    status.innerHTML = `<span class="text-red-500">Помилка: Не вдалося отримати ваш Telegram ID</span>`;
+                    return;
+                }
+
+                // Змінюємо вигляд кнопки
+                btn.disabled = true;
+                btn.innerText = "⏳ Відправка...";
+                btn.classList.add("opacity-50");
+
+                try {
+                    // Відправляємо запит на наш бекенд
+                    const response = await fetch("/api/admin", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ userId: adminId, message: msg }),
+                    });
+
+                    const data = await response.json();
+
+                    if (data.error) {
+                        status.innerHTML = `<span class="text-red-500">❌ ${data.error}</span>`;
+                    } else {
+                        status.innerHTML = `<span class="text-green-500">✅ Успішно відправлено ${data.count} користувачам!</span>`;
+                        document.getElementById("broadcastMsg").value = ""; // Очищаємо поле
+                    }
+                } catch (err) {
+                    status.innerHTML = `<span class="text-red-500">❌ Помилка з'єднання з сервером</span>`;
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = "Відправити всім";
+                    btn.classList.remove("opacity-50");
+                }
+            }
+        </script>
+    </body>
+</html>
