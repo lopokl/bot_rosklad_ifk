@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Налаштування</title>
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+            body {
+                background-color: var(--tg-theme-bg-color, #f3f4f6);
+                color: var(--tg-theme-text-color, #000000);
+            }
+            .tg-card {
+                background-color: var(--tg-theme-secondary-bg-color, #ffffff);
+            }
+
+            /* Стиль для красивого тумблера */
+            .toggle-checkbox:checked {
+                right: 0;
+                border-color: #3b82f6;
+            }
+            .toggle-checkbox:checked + .toggle-label {
+                background-color: #3b82f6;
+            }
+            .toggle-checkbox {
+                right: 4px;
+                z-index: 1;
+                border-color: #e5e7eb;
+                transition: all 0.3s;
+            }
+            .toggle-label {
+                width: 3rem;
+                height: 1.5rem;
+                background-color: #e5e7eb;
+                border-radius: 9999px;
+                transition: all 0.3s;
+            }
+        </style>
+    </head>
+    <body class="p-5 antialiased transition-colors duration-300">
+        <div class="max-w-md mx-auto">
+            <h1 class="text-2xl font-extrabold mb-6">⚙️ Налаштування</h1>
+
+            <div
+                class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 mb-4 flex justify-between items-center"
+            >
+                <div>
+                    <p class="text-xs font-bold uppercase opacity-60">
+                        Поточна група
+                    </p>
+                    <p class="text-lg font-bold" id="groupName">
+                        Завантаження...
+                    </p>
+                </div>
+            </div>
+
+            <div
+                class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 flex justify-between items-center"
+            >
+                <div>
+                    <p class="font-bold text-lg">🔔 Ранковий розклад</p>
+                    <p class="text-sm opacity-60">Отримувати розклад о 07:30</p>
+                </div>
+
+                <div
+                    class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in"
+                >
+                    <input
+                        type="checkbox"
+                        name="toggle"
+                        id="notifToggle"
+                        class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                        onchange="saveSettings()"
+                    />
+                    <label
+                        for="notifToggle"
+                        class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
+                    ></label>
+                </div>
+            </div>
+
+            <p class="text-center text-xs opacity-50 mt-6" id="saveStatus"></p>
+        </div>
+
+        <script>
+            const tg = window.Telegram.WebApp;
+            tg.expand();
+            tg.ready();
+
+            const userId = tg.initDataUnsafe?.user?.id || "0";
+
+            // Завантажуємо налаштування при відкритті
+            async function loadSettings() {
+                try {
+                    const res = await fetch(`/api/settings?userId=${userId}`);
+                    const data = await res.json();
+
+                    document.getElementById("groupName").innerText = data.group;
+                    document.getElementById("notifToggle").checked =
+                        data.notifications;
+                } catch (e) {
+                    document.getElementById("groupName").innerText = "Помилка";
+                }
+            }
+
+            // Зберігаємо, коли користувач клацає тумблер
+            async function saveSettings() {
+                const isChecked =
+                    document.getElementById("notifToggle").checked;
+                const statusText = document.getElementById("saveStatus");
+                statusText.innerText = "Збереження...";
+
+                try {
+                    await fetch("/api/settings", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            userId: userId,
+                            notifications: isChecked,
+                        }),
+                    });
+                    statusText.innerText = "✅ Збережено";
+                    setTimeout(() => (statusText.innerText = ""), 2000);
+                } catch (e) {
+                    statusText.innerText = "❌ Помилка збереження";
+                }
+            }
+
+            loadSettings();
+        </script>
+    </body>
+</html>

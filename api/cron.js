@@ -51,13 +51,20 @@ module.exports = async (req, res) => {
     }
 
     // 2. ВІДПРАВЛЯЄМО ПРИВАТНИМ ЮЗЕРАМ
-    // Скануємо базу на наявність користувачів
     let [, keys] = await kv.scan(0, { match: "user_*", count: 1000 });
-    let userIds = keys.map((k) => k.replace("user_", ""));
+    // Фільтруємо ключі, щоб брати тільки групи (user_123), а не налаштування (user_123_notif)
+    let userIds = keys
+      .filter((k) => !k.includes("_notif"))
+      .map((k) => k.replace("user_", ""));
 
     for (let userId of userIds) {
       try {
-        await bot.telegram.sendMessage(userId, text, keyboard);
+        // ПЕРЕВІРЯЄМО НАЛАШТУВАННЯ:
+        const wantsNotif = await kv.get(`user_${userId}_notif`);
+        // Відправляємо, ТІЛЬКИ якщо налаштування не вимкнене (false)
+        if (wantsNotif !== false) {
+          await bot.telegram.sendMessage(userId, text, keyboard);
+        }
       } catch (e) {
         console.log(`Не зміг відправити юзеру ${userId}`);
       }

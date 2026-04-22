@@ -194,8 +194,24 @@ bot.command("menu", (ctx) => {
     ["середа", "четвер", "п'ятниця"],
     ["субота"],
   ];
-  if (ctx.chat.type === "private") kb.push(["Змінити групу"]);
-  return ctx.reply("Оберіть день тижня:", Markup.keyboard(kb).resize());
+  if (ctx.chat.type === "private") {
+    kb.push(["Змінити групу", "⚙️ Налаштування"]); // Додали налаштування сюди!
+  }
+  return ctx.reply("Оберіть дію:", Markup.keyboard(kb).resize());
+});
+
+// Обробляємо натискання на кнопку "Налаштування"
+bot.hears("⚙️ Налаштування", (ctx) => {
+  if (ctx.chat.type !== "private") return;
+  return ctx.reply(
+    "Відкрийте панель налаштувань:",
+    Markup.inlineKeyboard([
+      Markup.button.webApp(
+        "Відкрити Налаштування",
+        "https://bot-rosklad-ifk.vercel.app/settings.html",
+      ), // ЗАМІНИ НА СВІЙ ДОМЕН!
+    ]),
+  );
 });
 
 // ==========================================
