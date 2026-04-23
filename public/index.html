@@ -3,51 +3,142 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Бот Розкладу</title>
+        <title>Розклад ІФК | Телеграм Бот</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link
-            href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap"
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap"
             rel="stylesheet"
         />
         <style>
             body {
-                font-family: "Roboto", sans-serif;
+                font-family: "Inter", sans-serif;
+            }
+
+            /* Плавна анімація фону */
+            .bg-animated {
+                background: linear-gradient(
+                    -45deg,
+                    #0f172a,
+                    #1e293b,
+                    #0f172a,
+                    #172554
+                );
+                background-size: 400% 400%;
+                animation: gradientBG 15s ease infinite;
+            }
+            @keyframes gradientBG {
+                0% {
+                    background-position: 0% 50%;
+                }
+                50% {
+                    background-position: 100% 50%;
+                }
+                100% {
+                    background-position: 0% 50%;
+                }
+            }
+
+            /* Ефект матового скла */
+            .glass-card {
+                background: rgba(30, 41, 59, 0.6);
+                backdrop-filter: blur(16px);
+                -webkit-backdrop-filter: blur(16px);
+                border: 1px solid rgba(255, 255, 255, 0.1);
             }
         </style>
     </head>
     <body
-        class="bg-gray-900 text-white flex flex-col items-center justify-center min-h-screen p-4"
+        class="bg-animated text-white flex flex-col items-center justify-center min-h-screen p-4"
     >
         <div
-            class="bg-gray-800 p-8 rounded-3xl shadow-2xl max-w-md w-full text-center border border-gray-700"
+            class="glass-card p-8 rounded-3xl shadow-2xl max-w-md w-full text-center relative overflow-hidden"
         >
             <div
-                class="w-24 h-24 mx-auto bg-blue-500 rounded-full flex items-center justify-center text-4xl mb-6 shadow-lg shadow-blue-500/50"
+                class="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-blue-500 rounded-full mix-blend-screen filter blur-[60px] opacity-40"
+            ></div>
+
+            <div
+                class="relative w-24 h-24 mx-auto bg-gradient-to-tr from-blue-600 to-cyan-400 rounded-full flex items-center justify-center text-5xl mb-6 shadow-lg shadow-blue-500/50 transform hover:scale-110 transition-transform duration-300"
             >
                 🤖
             </div>
 
             <h1
-                class="text-3xl font-bold mb-3 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300"
+                class="text-4xl font-extrabold mb-3 text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 tracking-tight"
             >
                 Розклад ІФК
             </h1>
 
-            <p class="text-gray-400 mb-8 leading-relaxed">
-                Швидкий, зручний та автоматизований доступ до розкладу занять
-                прямо у твоєму Telegram. Ніколи більше не питай "А яка зараз
-                пара?".
+            <p class="text-gray-300 mb-8 leading-relaxed text-sm">
+                Твій персональний помічник. Забудь про питання "А яка зараз
+                пара?" — розклад завжди під рукою у зручному форматі.
             </p>
 
-            <a
-                href="https://t.me/debilroskladbot"
-                target="_blank"
-                class="block w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-8 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg shadow-blue-500/30"
+            <div
+                class="flex flex-col gap-3 text-left mb-8 bg-black/20 p-5 rounded-2xl border border-white/5"
             >
-                Додати в Telegram
+                <div class="flex items-center gap-3">
+                    <div
+                        class="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400"
+                    >
+                        ⚡
+                    </div>
+                    <span class="text-sm font-medium text-gray-200"
+                        >Блискавичний Mini App</span
+                    >
+                </div>
+                <div class="flex items-center gap-3">
+                    <div
+                        class="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center text-green-400"
+                    >
+                        🔔
+                    </div>
+                    <span class="text-sm font-medium text-gray-200"
+                        >Ранковий будильник</span
+                    >
+                </div>
+                <div class="flex items-center gap-3">
+                    <div
+                        class="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400"
+                    >
+                        ⌚
+                    </div>
+                    <span class="text-sm font-medium text-gray-200"
+                        >Трекер поточної пари</span
+                    >
+                </div>
+            </div>
+
+            <a
+                href="https://t.me/@debilroskladbot"
+                target="_blank"
+                class="relative group block w-full"
+            >
+                <div
+                    class="absolute -inset-1 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-2xl blur opacity-60 group-hover:opacity-100 transition duration-300"
+                ></div>
+
+                <button
+                    class="relative w-full bg-slate-900 text-white font-bold py-4 px-8 rounded-2xl transition-all duration-300 flex items-center justify-center gap-3"
+                >
+                    <svg
+                        class="w-6 h-6 text-blue-400"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.19-.08-.05-.19-.02-.27 0-.12.03-1.99 1.26-5.61 3.71-.53.36-1.01.54-1.44.53-.47-.01-1.38-.27-2.05-.49-.82-.27-1.47-.41-1.41-.87.03-.24.36-.48 1.01-.74 3.96-1.72 6.6-2.86 7.92-3.4 3.75-1.54 4.53-1.81 5.03-1.82.11 0 .35.03.48.14.11.09.14.22.15.33-.01.12-.01.24-.03.36z"
+                        />
+                    </svg>
+                    Додати в Telegram
+                </button>
             </a>
         </div>
 
-        <p class="mt-8 text-gray-500 text-sm">Розроблено з ❤️ для студентів</p>
+        <p class="mt-8 text-gray-500 text-sm font-medium z-10">
+            Розроблено з
+            <span class="text-red-500 animate-pulse inline-block">❤️</span> для
+            студентів
+        </p>
     </body>
 </html>
