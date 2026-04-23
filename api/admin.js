@@ -71,7 +71,7 @@ module.exports = async (req, res) => {
 
       let [, keys] = await kv.scan(0, { match: "user_*", count: 1000 });
       let userIds = keys
-        .filter((k) => !k.includes("_"))
+        .filter((k) => !k.includes("_notif"))
         .map((k) => k.replace("user_", ""));
       let successCount = 0;
       const broadcastText = `📢 *Оголошення від Адміністратора:*\n\n${message}`;
