@@ -18,6 +18,19 @@
                 background-color: var(--tg-theme-button-color, #3b82f6);
                 color: var(--tg-theme-button-text-color, #ffffff);
             }
+            /* Анімація скелетону для завантаження */
+            .pulse {
+                animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            }
+            @keyframes pulse {
+                0%,
+                100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.5;
+                }
+            }
         </style>
     </head>
     <body class="p-5 antialiased">
@@ -25,22 +38,56 @@
             <h1 class="text-2xl font-extrabold mb-2 text-red-500">
                 👑 Панель Адміна
             </h1>
-            <p class="text-sm opacity-70 mb-6">Тут ти можеш керувати ботом.</p>
+            <p class="text-sm opacity-70 mb-6">Аналітика та керування ботом.</p>
 
-            <div class="tg-card p-4 rounded-2xl shadow-sm mb-4">
-                <h2 class="font-bold mb-2">📢 Масова розсилка</h2>
-                <p class="text-xs opacity-70 mb-3">
-                    Це повідомлення отримають УСІ студенти, які обрали групу в
-                    боті.
+            <h2
+                class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
+            >
+                📈 Аналітика
+            </h2>
+
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="tg-card p-4 rounded-2xl shadow-sm text-center">
+                    <p class="text-xs opacity-70 mb-1">Всього юзерів</p>
+                    <p class="text-3xl font-black text-blue-400" id="statUsers">
+                        ...
+                    </p>
+                </div>
+                <div class="tg-card p-4 rounded-2xl shadow-sm text-center">
+                    <p class="text-xs opacity-70 mb-1">Будильник ON</p>
+                    <p
+                        class="text-3xl font-black text-green-400"
+                        id="statNotif"
+                    >
+                        ...
+                    </p>
+                </div>
+            </div>
+
+            <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
+                <p class="text-xs opacity-70 mb-2 uppercase font-bold">
+                    🔥 Топ-3 активні групи
                 </p>
+                <div
+                    id="statGroups"
+                    class="text-sm font-medium space-y-1 pulse"
+                >
+                    Завантаження...
+                </div>
+            </div>
 
+            <h2
+                class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
+            >
+                ✉️ Повідомлення
+            </h2>
+            <div class="tg-card p-4 rounded-2xl shadow-sm mb-4">
                 <textarea
                     id="broadcastMsg"
-                    rows="4"
-                    class="w-full p-3 rounded-xl bg-black/20 border border-gray-500/30 outline-none focus:border-blue-500 mb-3"
-                    placeholder="Введіть текст оголошення..."
+                    rows="3"
+                    class="w-full p-3 rounded-xl bg-black/20 border border-gray-500/30 outline-none focus:border-blue-500 mb-3 text-sm"
+                    placeholder="Введіть текст оголошення для всіх..."
                 ></textarea>
-
                 <button
                     id="sendBtn"
                     onclick="sendBroadcast()"
@@ -50,7 +97,7 @@
                 </button>
             </div>
 
-            <div id="status" class="text-center font-bold text-sm"></div>
+            <div id="status" class="text-center font-bold text-sm mb-6"></div>
         </div>
 
         <script>
@@ -58,52 +105,88 @@
             tg.expand();
             tg.ready();
 
+            const adminId = tg.initDataUnsafe?.user?.id;
+
+            // Завантаження статистики
+            async function loadStats() {
+                if (!adminId) return;
+                try {
+                    const res = await fetch(`/api/admin?userId=${adminId}`);
+                    const data = await res.json();
+
+                    if (data.error) {
+                        document.getElementById("statGroups").innerHTML =
+                            `<span class="text-red-500">${data.error}</span>`;
+                        return;
+                    }
+
+                    document.getElementById("statUsers").innerText =
+                        data.totalUsers || 0;
+                    document.getElementById("statNotif").innerText =
+                        data.notifOnCount || 0;
+
+                    const groupsBox = document.getElementById("statGroups");
+                    groupsBox.classList.remove("pulse");
+                    if (data.topGroups && data.topGroups.length > 0) {
+                        groupsBox.innerHTML = data.topGroups
+                            .map(
+                                (g, i) =>
+                                    `<p>${i + 1}. <span class="text-blue-400">${g}</span></p>`,
+                            )
+                            .join("");
+                    } else {
+                        groupsBox.innerHTML =
+                            "<p class='opacity-50'>Ще немає даних</p>";
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+
+            // Розсилка (Твій попередній код)
             async function sendBroadcast() {
                 const msg = document.getElementById("broadcastMsg").value;
                 const btn = document.getElementById("sendBtn");
                 const status = document.getElementById("status");
 
                 if (!msg.trim()) {
-                    tg.showAlert("Введіть текст повідомлення!");
+                    tg.showAlert("Введіть текст!");
                     return;
                 }
-
-                // Отримуємо твій ID з Telegram
-                const adminId = tg.initDataUnsafe?.user?.id;
                 if (!adminId) {
-                    status.innerHTML = `<span class="text-red-500">Помилка: Не вдалося отримати ваш Telegram ID</span>`;
+                    status.innerHTML = `<span class="text-red-500">Помилка ID</span>`;
                     return;
                 }
 
-                // Змінюємо вигляд кнопки
                 btn.disabled = true;
                 btn.innerText = "⏳ Відправка...";
                 btn.classList.add("opacity-50");
 
                 try {
-                    // Відправляємо запит на наш бекенд
                     const response = await fetch("/api/admin", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ userId: adminId, message: msg }),
                     });
-
                     const data = await response.json();
 
                     if (data.error) {
                         status.innerHTML = `<span class="text-red-500">❌ ${data.error}</span>`;
                     } else {
-                        status.innerHTML = `<span class="text-green-500">✅ Успішно відправлено ${data.count} користувачам!</span>`;
-                        document.getElementById("broadcastMsg").value = ""; // Очищаємо поле
+                        status.innerHTML = `<span class="text-green-500">✅ Відправлено ${data.count} юзерам!</span>`;
+                        document.getElementById("broadcastMsg").value = "";
                     }
                 } catch (err) {
-                    status.innerHTML = `<span class="text-red-500">❌ Помилка з'єднання з сервером</span>`;
+                    status.innerHTML = `<span class="text-red-500">❌ Помилка з'єднання</span>`;
                 } finally {
                     btn.disabled = false;
                     btn.innerText = "Відправити всім";
                     btn.classList.remove("opacity-50");
                 }
             }
+
+            // Запускаємо при відкритті сторінки
+            loadStats();
         </script>
     </body>
 </html>
