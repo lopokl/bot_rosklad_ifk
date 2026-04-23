@@ -81,6 +81,29 @@
             </div>
 
             <p class="text-center text-xs opacity-50 mt-6" id="saveStatus"></p>
+            <div
+                class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 mt-4"
+            >
+                <p class="font-bold mb-2 text-lg">✉️ Написати Адміну</p>
+                <p class="text-xs opacity-60 mb-3">
+                    Знайшли помилку в розкладі? Напишіть нам!
+                </p>
+
+                <textarea
+                    id="feedbackMsg"
+                    rows="3"
+                    class="w-full p-3 rounded-xl bg-black/5 border border-gray-500/20 outline-none focus:border-blue-500 mb-2 text-sm transition-colors"
+                    placeholder="Опишіть проблему..."
+                ></textarea>
+
+                <button
+                    id="feedbackBtn"
+                    onclick="sendFeedback()"
+                    class="tg-btn w-full py-2.5 rounded-xl font-bold shadow-md text-sm transition-opacity"
+                >
+                    Відправити
+                </button>
+            </div>
         </div>
 
         <script>
@@ -124,6 +147,44 @@
                     setTimeout(() => (statusText.innerText = ""), 2000);
                 } catch (e) {
                     statusText.innerText = "❌ Помилка збереження";
+                }
+            }
+
+            // Відправляємо відгук адміну
+            async function sendFeedback() {
+                const msg = document.getElementById("feedbackMsg").value;
+                const btn = document.getElementById("feedbackBtn");
+                const statusText = document.getElementById("saveStatus");
+
+                if (!msg.trim()) {
+                    tg.showAlert("Введіть текст повідомлення!");
+                    return;
+                }
+
+                btn.disabled = true;
+                btn.innerText = "⏳ Відправка...";
+                btn.classList.add("opacity-50");
+
+                try {
+                    const response = await fetch("/api/feedback", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ userId: userId, message: msg }),
+                    });
+
+                    if (response.ok) {
+                        statusText.innerText = "✅ Відгук надіслано адміну!";
+                        document.getElementById("feedbackMsg").value = "";
+                        setTimeout(() => (statusText.innerText = ""), 3000);
+                    } else {
+                        statusText.innerText = "❌ Помилка відправки";
+                    }
+                } catch (e) {
+                    statusText.innerText = "❌ Помилка з'єднання";
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = "Відправити";
+                    btn.classList.remove("opacity-50");
                 }
             }
 

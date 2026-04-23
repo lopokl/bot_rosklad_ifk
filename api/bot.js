@@ -75,10 +75,25 @@ const timeMap = {
 // ==========================================
 
 async function getSheetData(sheetId, gid = "0") {
+  // Створюємо унікальний ключ для цієї таблиці
+  const cacheKey = `cache_${sheetId}_${gid}`;
+
+  // 1. Спочатку шукаємо в швидкій пам'яті (KV)
+  const cachedData = await kv.get(cacheKey);
+  if (cachedData) {
+    return cachedData; // Блискавичне повернення!
+  }
+
+  // 2. Якщо в кеші пусто (або пройшла 1 година) - йдемо в Google
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
   const response = await fetch(url);
   const textData = await response.text();
-  return textData.split("\n");
+  const rows = textData.split("\n");
+
+  // 3. Зберігаємо результат у кеш на 3600 секунд (1 годину)
+  await kv.set(cacheKey, rows, { ex: 3600 });
+
+  return rows;
 }
 
 // 🛡 АВТО-ПЕРЕКЛАДАЧ (Виправляє англійські літери на українські)
