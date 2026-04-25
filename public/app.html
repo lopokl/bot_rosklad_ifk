@@ -39,7 +39,6 @@
                     opacity: 0.5;
                 }
             }
-
             select {
                 -webkit-appearance: none;
                 -moz-appearance: none;
@@ -151,9 +150,6 @@
                         id="groupSelect"
                         class="w-full p-4 rounded-xl bg-gray-500/10 border border-gray-500/20 outline-none text-lg font-bold text-center cursor-pointer"
                     >
-                        <option value="101-К">101-К</option>
-                        <option value="102-К">102-К</option>
-                        <option value="201-К">201-К</option>
                         <option value="306-К">306-К</option>
                         <option value="307-К">307-К</option>
                     </select>
@@ -194,14 +190,13 @@
                     tg.initDataUnsafe.user.first_name;
             }
 
-            // ==========================================
-            // 📚 ТВОЇ ГЛОБАЛЬНІ НОТАТКИ (Про викладачів)
-            // ==========================================
             const subjectDetails = {
-              .
+                "Основи програмування":
+                    "👨‍🏫 Викладач: Іванов І.І.\n💻 Кафедра комп'ютерних наук\n🔗 Zoom: https://zoom.us/j/12345",
+                "Вища математика":
+                    "👩‍🏫 Викладач: Петрова О.М.\n📝 Не забути зошит на 48 аркушів!",
             };
 
-            // --- 1. ЗАВАНТАЖЕННЯ РОЗКЛАДУ ---
             async function loadSchedule(dayKey) {
                 currentDay = dayKey;
                 const container = document.getElementById("scheduleContainer");
@@ -225,6 +220,11 @@
                     );
                     const data = await response.json();
 
+                    if (data.error) {
+                        container.innerHTML = `<div class="tg-card p-4 rounded-2xl text-red-500 font-bold text-center">❌ ${data.error}</div>`;
+                        return;
+                    }
+
                     document.getElementById("groupName").textContent =
                         data.group || "Не обрано";
                     document.getElementById("dateHeader").textContent =
@@ -235,7 +235,6 @@
                         return;
                     }
 
-                    // Малюємо картки
                     container.innerHTML = data.schedule
                         .map((pair, index) => {
                             if (
@@ -243,7 +242,7 @@
                                 pair.name === "Вікно"
                             ) {
                                 return `
-                        <div class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 opacity-40">
+                        <div id="pairCard_${pair.pair}" class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 opacity-40">
                             <div class="flex justify-between items-center mb-2">
                                 <span class="text-xs font-bold px-2 py-0.5 bg-gray-500/20 rounded-md">Пара ${pair.pair}</span>
                                 <span class="text-xs font-bold">${pair.time}</span>
@@ -255,12 +254,15 @@
                             const extraInfo =
                                 subjectDetails[pair.name] ||
                                 "💡 Додаткової інформації про предмет поки немає.";
-                            const safeName = pair.name.replace(/'/g, "\\'"); // Безпечне ім'я для JS
+                            const safeName = pair.name.replace(/'/g, "\\'");
 
                             return `
-                        <div class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 border-l-4 border-l-blue-500 transform origin-top" onclick="toggleCard(this, '${safeName}', ${index})">
+                        <div id="pairCard_${pair.pair}" class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 border-l-4 border-l-blue-500 transform origin-top transition-all duration-300" onclick="toggleCard(this, '${safeName}', ${index})">
                             <div class="flex justify-between items-center mb-2">
-                                <span class="text-xs font-bold px-2 py-0.5 bg-blue-500/20 text-blue-500 rounded-md">Пара ${pair.pair}</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-bold px-2 py-0.5 bg-blue-500/20 text-blue-500 rounded-md">Пара ${pair.pair}</span>
+                                    <span id="badge_${pair.pair}"></span>
+                                </div>
                                 <span class="text-xs opacity-60 font-bold">${pair.time}</span>
                             </div>
 
@@ -276,7 +278,6 @@
 
                             <div class="extra-info hidden mt-4 pt-3 border-t border-gray-500/20 text-sm opacity-90">
                                 <div class="whitespace-pre-line leading-relaxed mb-4">${extraInfo}</div>
-
                                 <div class="bg-black/5 p-3 rounded-xl border border-gray-500/10" onclick="event.stopPropagation()">
                                     <p class="text-xs font-bold uppercase tracking-wider opacity-60 mb-2">📝 Моє ДЗ / Нотатки</p>
                                     <textarea id="noteInput_${index}" rows="2" class="w-full p-2 rounded-lg bg-white/50 border border-gray-500/20 text-sm outline-none focus:border-blue-500 mb-2 text-black" placeholder="Що задали?"></textarea>
@@ -286,20 +287,20 @@
                         </div>`;
                         })
                         .join("");
-                        highlightCurrentClass(dayKey);
+
+                    // Викликаємо підсвітку поточної пари
+                    highlightCurrentClass(dayKey);
                 } catch (err) {
-                    container.innerHTML = `<div class="tg-card p-4 rounded-2xl text-center opacity-70">Помилка з'єднання</div>`;
+                    container.innerHTML = `<div class="tg-card p-4 rounded-2xl text-center opacity-70">Помилка з'єднання з сервером</div>`;
                 }
             }
 
-            // --- 2. ЛОГІКА АКОРДЕОНА І ЗАВАНТАЖЕННЯ НОТАТКИ ---
             async function toggleCard(cardElement, subjectName, index) {
                 const extraInfo = cardElement.querySelector(".extra-info");
                 const chevron = cardElement.querySelector(".chevron");
                 const textarea = document.getElementById("noteInput_" + index);
 
                 if (extraInfo.classList.contains("hidden")) {
-                    // Відкриваємо картку
                     extraInfo.classList.remove("hidden");
                     cardElement.classList.add(
                         "scale-[1.02]",
@@ -308,7 +309,6 @@
                     );
                     chevron.style.transform = "rotate(180deg)";
 
-                    // Якщо нотатку ще не завантажили з бази - вантажимо її
                     if (textarea.getAttribute("data-loaded") !== "true") {
                         textarea.value = "⏳ Завантаження...";
                         try {
@@ -323,7 +323,6 @@
                         }
                     }
                 } else {
-                    // Закриваємо картку
                     extraInfo.classList.add("hidden");
                     cardElement.classList.remove(
                         "scale-[1.02]",
@@ -334,9 +333,8 @@
                 }
             }
 
-            // --- 3. ЗБЕРЕЖЕННЯ ОСОБИСТОЇ НОТАТКИ ---
             async function saveUserNote(event, subjectName, index) {
-                event.stopPropagation(); // Не дає картці закритися при кліку на кнопку
+                event.stopPropagation();
                 const noteText = document.getElementById(
                     "noteInput_" + index,
                 ).value;
@@ -363,13 +361,11 @@
                 }
             }
 
-            // --- 4. ВІДМАЛЬОВКА МОДАЛКИ ДЛЯ ГРУПИ (БЕЗ СЕРВЕРА) ---
             function openGroupModal() {
                 const overlay = document.getElementById("groupModalOverlay");
                 const content = document.getElementById("groupModalContent");
                 const select = document.getElementById("groupSelect");
 
-                // Встановлюємо поточну групу в селект
                 const currentGroup =
                     document.getElementById("groupName").textContent;
                 if (
@@ -380,7 +376,6 @@
                     select.value = currentGroup;
                 }
 
-                // Показуємо вікно з анімацією
                 overlay.classList.remove("hidden");
                 setTimeout(() => {
                     overlay.classList.remove("opacity-0");
@@ -423,53 +418,74 @@
                 }
             }
 
-            loadSchedule("mon");
-
-            // --- 5. РОЗУМНА ПІДСВІТКА ПОТОЧНОЇ ПАРИ ---
             function highlightCurrentClass(selectedDayKey) {
-                // Отримуємо залізно Київський час на телефоні
-                const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Kyiv" }));
-                const daysMap = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-                const realTodayKey = daysMap[now.getDay()];
+                try {
+                    const now = new Date();
 
-                // Якщо юзер дивиться розклад НЕ на сьогодні - нічого не підсвічуємо
-                if (selectedDayKey !== realTodayKey) return;
+                    // Форматуємо час під Київ
+                    const formatterDay = new Intl.DateTimeFormat("en-US", {
+                        timeZone: "Europe/Kyiv",
+                        weekday: "short",
+                    });
+                    const todayStr = formatterDay.format(now).toLowerCase();
 
-                const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                    if (selectedDayKey !== todayStr) return;
 
-                // Розклад дзвінків (час у хвилинах від початку доби)
-                const scheduleTimes = [
-                    { num: 1, start: 8 * 60 + 30, end: 9 * 60 + 50 },
-                    { num: 2, start: 10 * 60 + 5, end: 11 * 60 + 25 },
-                    { num: 3, start: 11 * 60 + 55, end: 13 * 60 + 15 },
-                    { num: 4, start: 13 * 60 + 30, end: 14 * 60 + 50 },
-                    { num: 5, start: 15 * 60 + 5, end: 16 * 60 + 25 },
-                    { num: 6, start: 16 * 60 + 40, end: 18 * 60 + 0 }
-                ];
+                    const formatterTime = new Intl.DateTimeFormat("en-GB", {
+                        timeZone: "Europe/Kyiv",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                    });
+                    const timeStr = formatterTime.format(now);
+                    const parts = timeStr.split(":");
 
-                let activePairNum = -1;
-                for (let slot of scheduleTimes) {
-                    if (currentMinutes >= slot.start && currentMinutes <= slot.end) {
-                        activePairNum = slot.num;
-                        break;
+                    let currentHours = parseInt(parts[0], 10);
+                    if (currentHours === 24) currentHours = 0;
+                    const currentMinutes =
+                        currentHours * 60 + parseInt(parts[1], 10);
+
+                    const scheduleTimes = [
+                        { num: 1, start: 8 * 60 + 30, end: 9 * 60 + 50 },
+                        { num: 2, start: 10 * 60 + 5, end: 11 * 60 + 25 },
+                        { num: 3, start: 11 * 60 + 55, end: 13 * 60 + 15 },
+                        { num: 4, start: 13 * 60 + 30, end: 14 * 60 + 50 },
+                        { num: 5, start: 15 * 60 + 5, end: 16 * 60 + 25 },
+                        { num: 6, start: 16 * 60 + 40, end: 18 * 60 + 0 },
+                    ];
+
+                    for (let slot of scheduleTimes) {
+                        if (
+                            currentMinutes >= slot.start &&
+                            currentMinutes <= slot.end
+                        ) {
+                            const activeCard = document.getElementById(
+                                "pairCard_" + slot.num,
+                            );
+                            const activeBadge = document.getElementById(
+                                "badge_" + slot.num,
+                            );
+                            if (activeCard && activeBadge) {
+                                activeCard.classList.remove(
+                                    "border-gray-500/10",
+                                    "border-l-blue-500",
+                                );
+                                activeCard.classList.add(
+                                    "border-green-500",
+                                    "bg-green-500/5",
+                                    "shadow-green-500/20",
+                                );
+                                activeBadge.innerHTML = `<span class="px-2 py-0.5 bg-green-500 text-white font-black text-[10px] uppercase tracking-wider rounded-md animate-pulse shadow-md shadow-green-500/40">🔥 Йде зараз</span>`;
+                            }
+                            break;
+                        }
                     }
-                }
-
-                // Якщо зараз йде якась пара - підсвічуємо її!
-                if (activePairNum !== -1) {
-                    const activeCard = document.getElementById(`pairCard_${activePairNum}`);
-                    const activeBadge = document.getElementById(`badge_${activePairNum}`);
-
-                    if (activeCard && activeBadge) {
-                        // Змінюємо кольори картки на зелені (Активні)
-                        activeCard.classList.remove('border-gray-500/10', 'border-l-blue-500');
-                        activeCard.classList.add('border-green-500', 'bg-green-500/5', 'shadow-green-500/20');
-
-                        // Додаємо бейджик, який блимає
-                        activeBadge.innerHTML = `<span class="px-2 py-0.5 bg-green-500 text-white font-black text-[10px] uppercase tracking-wider rounded-md animate-pulse shadow-md shadow-green-500/40">🔥 Йде зараз</span>`;
-                    }
+                } catch (e) {
+                    console.log("Помилка підсвітки часу:", e);
                 }
             }
+
+            // Запуск
+            loadSchedule("mon");
         </script>
     </body>
 </html>
