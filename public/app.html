@@ -13,6 +13,8 @@
             }
             .tg-card {
                 background-color: var(--tg-theme-secondary-bg-color, #f4f4f5);
+                cursor: pointer;
+                transition: all 0.3s ease;
             }
             .tg-btn {
                 background-color: var(--tg-theme-button-color, #2481cc);
@@ -25,7 +27,6 @@
                 -ms-overflow-style: none;
                 scrollbar-width: none;
             }
-            /* Анімація завантаження */
             .pulse {
                 animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
             }
@@ -40,7 +41,9 @@
             }
         </style>
     </head>
-    <body class="p-5 antialiased transition-colors duration-300">
+    <body
+        class="p-5 antialiased transition-colors duration-300 relative overflow-x-hidden"
+    >
         <div class="max-w-md mx-auto">
             <div class="flex items-center justify-between mb-6">
                 <div>
@@ -54,14 +57,20 @@
             </div>
 
             <div
-                class="mb-6 tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10"
+                class="mb-6 tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 flex justify-between items-center"
+                onclick="editGroup()"
             >
-                <label
-                    class="block text-xs font-bold uppercase tracking-wider opacity-60 mb-2"
-                    >Твоя група</label
-                >
-                <div class="text-xl font-bold text-blue-500" id="groupName">
-                    Завантаження...
+                <div>
+                    <label
+                        class="block text-xs font-bold uppercase tracking-wider opacity-60 mb-1"
+                        >Твоя група</label
+                    >
+                    <div
+                        class="text-xl font-bold text-blue-500 flex items-center gap-2"
+                    >
+                        <span id="groupName">Завантаження...</span>
+                        <span class="text-sm opacity-50">✏️</span>
+                    </div>
                 </div>
             </div>
 
@@ -74,46 +83,46 @@
                     id="btn_mon"
                     class="day-btn tg-btn px-5 py-2.5 rounded-full whitespace-nowrap font-bold shadow-md"
                 >
-                    Понеділок
+                    Пн
                 </button>
                 <button
                     onclick="loadSchedule('tue')"
                     id="btn_tue"
                     class="day-btn tg-card px-5 py-2.5 rounded-full whitespace-nowrap font-medium opacity-80"
                 >
-                    Вівторок
+                    Вв
                 </button>
                 <button
                     onclick="loadSchedule('wed')"
                     id="btn_wed"
                     class="day-btn tg-card px-5 py-2.5 rounded-full whitespace-nowrap font-medium opacity-80"
                 >
-                    Середа
+                    Ср
                 </button>
                 <button
                     onclick="loadSchedule('thu')"
                     id="btn_thu"
                     class="day-btn tg-card px-5 py-2.5 rounded-full whitespace-nowrap font-medium opacity-80"
                 >
-                    Четвер
+                    Чт
                 </button>
                 <button
                     onclick="loadSchedule('fri')"
                     id="btn_fri"
                     class="day-btn tg-card px-5 py-2.5 rounded-full whitespace-nowrap font-medium opacity-80"
                 >
-                    П'ятниця
+                    Пт
                 </button>
                 <button
                     onclick="loadSchedule('sat')"
                     id="btn_sat"
                     class="day-btn tg-card px-5 py-2.5 rounded-full whitespace-nowrap font-medium opacity-80"
                 >
-                    Субота
+                    Сб
                 </button>
             </div>
 
-            <div id="scheduleContainer" class="space-y-3"></div>
+            <div id="scheduleContainer" class="space-y-3 pb-10"></div>
         </div>
 
         <script>
@@ -121,17 +130,32 @@
             tg.expand();
             tg.ready();
 
-            let currentUserId = "0"; // Дефолт для тестів
+            let currentUserId = tg.initDataUnsafe?.user?.id || "0";
+            let currentDay = "mon";
+
             if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
                 document.getElementById("userName").textContent =
                     tg.initDataUnsafe.user.first_name;
-                currentUserId = tg.initDataUnsafe.user.id;
             }
 
+            // ==========================================
+            // 📚 ТУТ ТИ ПИШЕШ СВОЇ НОТАТКИ (СЛОВНИК)
+            // ==========================================
+            const subjectDetails = {
+                "Основи програмування":
+                    "👨‍🏫 Викладач: Іванов І.І.\n💻 Кафедра комп'ютерних наук\n🔗 Zoom: https://zoom.us/j/12345",
+                "Вища математика":
+                    "👩‍🏫 Викладач: Петрова О.М.\n📝 Не забути зошит на 48 аркушів!",
+                "Історія України":
+                    "👨‍🏫 Викладач: Шевченко В.І.\n📖 Читати конспект перед парою.",
+                // Додавай сюди інші предмети за таким самим зразком!
+            };
+
+            // --- 1. ЗАВАНТАЖЕННЯ РОЗКЛАДУ ---
             async function loadSchedule(dayKey) {
+                currentDay = dayKey;
                 const container = document.getElementById("scheduleContainer");
 
-                // Оновлюємо кнопки (активна - синя, інші - сірі)
                 document.querySelectorAll(".day-btn").forEach((btn) => {
                     btn.classList.remove("tg-btn", "font-bold", "shadow-md");
                     btn.classList.add("tg-card", "font-medium", "opacity-80");
@@ -144,18 +168,16 @@
                 );
                 activeBtn.classList.add("tg-btn", "font-bold", "shadow-md");
 
-                // Показуємо завантаження
                 container.innerHTML = `<div class="tg-card p-4 rounded-2xl opacity-50 pulse text-center font-bold">Оновлюю дані...</div>`;
 
                 try {
-                    // РОБИМО ЗАПИТ ДО НАШОГО БЕКЕНДУ!
                     const response = await fetch(
                         `/api/get-schedule?userId=${currentUserId}&day=${dayKey}`,
                     );
                     const data = await response.json();
 
                     if (data.error) {
-                        container.innerHTML = `<div class="tg-card p-4 rounded-2xl text-red-500 font-bold text-center border border-red-500/30">❌ ${data.error}</div>`;
+                        container.innerHTML = `<div class="tg-card p-4 rounded-2xl text-red-500 font-bold text-center">❌ ${data.error}</div>`;
                         return;
                     }
 
@@ -165,43 +187,119 @@
                         `Розклад на ${data.date}`;
 
                     if (!data.schedule || data.schedule.length === 0) {
-                        container.innerHTML = `<div class="tg-card p-4 rounded-2xl text-center opacity-70">🎉 На цей день пар немає!</div>`;
+                        container.innerHTML = `<div class="tg-card p-4 rounded-2xl text-center opacity-70">🎉 Пар немає!</div>`;
                         return;
                     }
 
-                    // Малюємо картки пар
                     container.innerHTML = data.schedule
                         .map((pair) => {
-                            if (pair.name === "Немає") {
+                            if (
+                                pair.name === "Немає" ||
+                                pair.name === "Вікно"
+                            ) {
                                 return `
-                        <div class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 opacity-50">
-                            <div class="flex justify-between items-center mb-3">
-                                <span class="text-xs font-bold px-2.5 py-1 bg-gray-500/20 text-gray-500 rounded-lg">Пара ${pair.pair}</span>
-                                <span class="text-xs font-bold tracking-wide">${pair.time}</span>
+                        <div class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 opacity-40">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-xs font-bold px-2 py-0.5 bg-gray-500/20 rounded-md">Пара ${pair.pair}</span>
+                                <span class="text-xs font-bold">${pair.time}</span>
                             </div>
-                            <h3 class="font-bold text-lg mb-1">🪟 Немає</h3>
+                            <h3 class="font-bold text-lg">🪟 Вікно</h3>
                         </div>`;
                             }
+
+                            // Беремо інфу зі словника
+                            const extraInfo =
+                                subjectDetails[pair.name] ||
+                                "💡 Додаткової інформації про викладача поки немає.";
+
+                            // КЛІКАБЕЛЬНА КАРТКА (АКОРДЕОН)
                             return `
-                        <div class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10">
-                            <div class="flex justify-between items-center mb-3">
-                                <span class="text-xs font-bold px-2.5 py-1 bg-blue-500/20 text-blue-500 rounded-lg">Пара ${pair.pair}</span>
-                                <span class="text-xs opacity-60 font-bold tracking-wide">${pair.time}</span>
+                        <div class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 border-l-4 border-l-blue-500 transform origin-top" onclick="toggleCard(this)">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-xs font-bold px-2 py-0.5 bg-blue-500/20 text-blue-500 rounded-md">Пара ${pair.pair}</span>
+                                <span class="text-xs opacity-60 font-bold">${pair.time}</span>
                             </div>
-                            <h3 class="font-bold text-lg mb-1 leading-tight">${pair.name}</h3>
-                            <p class="text-sm opacity-80 mb-3">${pair.type}</p>
-                            <div class="flex items-center text-sm font-bold opacity-80">
-                                <span class="mr-2 text-lg">🚪</span> Ауд: ${pair.aud}
+
+                            <div class="flex justify-between items-center">
+                                <h3 class="font-bold text-lg leading-tight mb-1 pr-4">${pair.name}</h3>
+                                <span class="opacity-50 text-xs chevron transition-transform duration-300">▼</span>
+                            </div>
+
+                            <div class="flex justify-between items-end mt-2">
+                                <p class="text-sm opacity-80">${pair.type}</p>
+                                <div class="text-sm font-bold opacity-80">🚪 ${pair.aud}</div>
+                            </div>
+
+                            <div class="extra-info hidden mt-4 pt-3 border-t border-gray-500/20 text-sm opacity-90 whitespace-pre-line leading-relaxed">
+                                ${extraInfo}
                             </div>
                         </div>`;
                         })
                         .join("");
                 } catch (err) {
-                    container.innerHTML = `<div class="tg-card p-4 rounded-2xl text-center opacity-70">Помилка з'єднання з сервером.</div>`;
+                    container.innerHTML = `<div class="tg-card p-4 rounded-2xl text-center opacity-70">Помилка з'єднання</div>`;
                 }
             }
 
-            // При запуску завантажуємо понеділок
+            // --- 2. ЛОГІКА АКОРДЕОНА ---
+            function toggleCard(cardElement) {
+                const extraInfo = cardElement.querySelector(".extra-info");
+                const chevron = cardElement.querySelector(".chevron");
+
+                if (extraInfo.classList.contains("hidden")) {
+                    extraInfo.classList.remove("hidden");
+                    cardElement.classList.add(
+                        "scale-[1.03]",
+                        "shadow-lg",
+                        "my-2",
+                    );
+                    chevron.style.transform = "rotate(180deg)";
+                } else {
+                    extraInfo.classList.add("hidden");
+                    cardElement.classList.remove(
+                        "scale-[1.03]",
+                        "shadow-lg",
+                        "my-2",
+                    );
+                    chevron.style.transform = "rotate(0deg)";
+                }
+            }
+
+            // --- 3. ЛОГІКА ЗМІНИ ГРУПИ ---
+            function editGroup() {
+                tg.showPopup(
+                    {
+                        title: "Зміна групи",
+                        message: "Введіть назву вашої нової групи:",
+                        buttons: [
+                            { id: "cancel", type: "cancel" },
+                            { id: "ok", type: "default", text: "Готово" },
+                        ],
+                    },
+                    async function (buttonId) {
+                        if (buttonId === "ok") {
+                            const newGroup = prompt("Введіть групу:");
+                            if (newGroup && newGroup.trim() !== "") {
+                                document.getElementById(
+                                    "groupName",
+                                ).textContent = "Оновлення...";
+                                await fetch("/api/save-group", {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                    },
+                                    body: JSON.stringify({
+                                        userId: currentUserId,
+                                        group: newGroup,
+                                    }),
+                                });
+                                loadSchedule(currentDay); // Перемальовуємо розклад
+                            }
+                        }
+                    },
+                );
+            }
+
             loadSchedule("mon");
         </script>
     </body>
