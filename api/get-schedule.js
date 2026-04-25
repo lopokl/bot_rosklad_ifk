@@ -3,27 +3,6 @@ const { kv } = require("@vercel/kv");
 // Наші налаштування (такі ж як у бота)
 const { sheetsConfig, timeMap } = require("./config");
 
-function normalizeGroup(name) {
-  const latinToCyrillic = {
-    A: "А",
-    B: "В",
-    C: "С",
-    E: "Е",
-    H: "Н",
-    I: "І",
-    K: "К",
-    M: "М",
-    O: "О",
-    P: "Р",
-    T: "Т",
-    X: "Х",
-  };
-  return name
-    .toUpperCase()
-    .replace(/[ABCEHIKMOPTX]/g, (m) => latinToCyrillic[m])
-    .trim();
-}
-
 async function getSheetData(sheetId, gid = "0") {
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
   const response = await fetch(url);
