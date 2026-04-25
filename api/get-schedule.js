@@ -3,11 +3,45 @@ const { kv } = require("@vercel/kv");
 // Наші налаштування (такі ж як у бота)
 const { sheetsConfig, timeMap } = require("./config");
 
+// ==========================================
+// ФУНКЦІЯ ДЛЯ ЗАВАНТАЖЕННЯ ДАНИХ (З Кешуванням)
+// ==========================================
 async function getSheetData(sheetId, gid = "0") {
+  const cacheKey = `cache_${sheetId}_${gid}`;
+  const cachedData = await kv.get(cacheKey);
+  if (cachedData) return cachedData;
+
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
   const response = await fetch(url);
   const textData = await response.text();
-  return textData.split("\n");
+  const rows = textData.split("\n");
+
+  await kv.set(cacheKey, rows, { ex: 3600 });
+  return rows;
+}
+
+// ==========================================
+// 🛡 АВТО-ПЕРЕКЛАДАЧ (Нормалізатор)
+// ==========================================
+function normalizeGroup(name) {
+  const latinToCyrillic = {
+    A: "А",
+    B: "В",
+    C: "С",
+    E: "Е",
+    H: "Н",
+    I: "І",
+    K: "К",
+    M: "М",
+    O: "О",
+    P: "Р",
+    T: "Т",
+    X: "Х",
+  };
+  return name
+    .toUpperCase()
+    .replace(/[ABCEHIKMOPTX]/g, (m) => latinToCyrillic[m])
+    .trim();
 }
 
 module.exports = async (req, res) => {
