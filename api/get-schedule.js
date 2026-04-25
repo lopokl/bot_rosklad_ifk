@@ -51,7 +51,7 @@ module.exports = async (req, res) => {
 
   try {
     const userId = req.query.userId;
-
+    const dayKey = req.query.day || "mon";
     if (!userId) {
       return res.status(400).json({ error: "Немає ID користувача" });
     }
