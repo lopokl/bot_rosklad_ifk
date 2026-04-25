@@ -51,11 +51,28 @@ module.exports = async (req, res) => {
 
   try {
     const userId = req.query.userId;
-    const dayKey = req.query.day || "mon";
 
     if (!userId) {
       return res.status(400).json({ error: "Немає ID користувача" });
     }
+
+    // --- 🛡 ЗАХИСТ ВІД СПАМУ (RATE-LIMITING) ---
+    const limitKey = `rate_limit_${userId}`;
+    const requestsCount = await kv.incr(limitKey); // Збільшуємо лічильник на 1
+
+    // Якщо це перший запит за останній час, ставимо таймер скидання на 60 секунд
+    if (requestsCount === 1) {
+      await kv.expire(limitKey, 60);
+    }
+
+    // Якщо юзер натиснув кнопку більше 15 разів за хвилину - блокуємо
+    if (requestsCount > 15) {
+      console.log(`⚠️ Спам від юзера: ${userId}`);
+      return res
+        .status(429)
+        .json({ error: "Забагато запитів! Почекай хвилинку ⏳" });
+    }
+    // ------------------------------------------
 
     // Дістаємо групу з бази
     const userGroup = await kv.get(`user_${userId}`);
