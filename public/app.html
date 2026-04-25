@@ -39,16 +39,15 @@
                     opacity: 0.5;
                 }
             }
-            /* Стиль для селекта */
+
             select {
                 -webkit-appearance: none;
                 -moz-appearance: none;
                 appearance: none;
             }
-            /* Фікс для списку груп (білий текст на білому фоні) */
             select option {
-                background-color: #1f2937; /* Темно-сірий фон */
-                color: #ffffff; /* Білий текст */
+                background-color: #374151;
+                color: #ffffff;
             }
         </style>
     </head>
@@ -147,22 +146,17 @@
                 <h2 class="text-xl font-bold mb-4 text-center">
                     Оберіть вашу групу
                 </h2>
-
                 <div class="relative mb-6">
                     <select
                         id="groupSelect"
                         class="w-full p-4 rounded-xl bg-gray-500/10 border border-gray-500/20 outline-none text-lg font-bold text-center cursor-pointer"
-                    >
-                        <option value="306-К">306-К</option>
-                        <option value="307-К">307-К</option>
-                    </select>
+                    ></select>
                     <div
                         class="pointer-events-none absolute inset-y-0 right-4 flex items-center"
                     >
                         <span class="opacity-50">▼</span>
                     </div>
                 </div>
-
                 <div class="flex gap-3">
                     <button
                         onclick="closeGroupModal()"
@@ -195,15 +189,13 @@
             }
 
             // ==========================================
-            // 📚 ТУТ ТИ ПИШЕШ СВОЇ НОТАТКИ (СЛОВНИК)
+            // 📚 ТВОЇ ГЛОБАЛЬНІ НОТАТКИ (Про викладачів)
             // ==========================================
             const subjectDetails = {
                 "Основи програмування":
                     "👨‍🏫 Викладач: Іванов І.І.\n💻 Кафедра комп'ютерних наук\n🔗 Zoom: https://zoom.us/j/12345",
                 "Вища математика":
                     "👩‍🏫 Викладач: Петрова О.М.\n📝 Не забути зошит на 48 аркушів!",
-                "Історія України":
-                    "👨‍🏫 Викладач: Шевченко В.І.\n📖 Читати конспект перед парою.",
             };
 
             // --- 1. ЗАВАНТАЖЕННЯ РОЗКЛАДУ ---
@@ -215,13 +207,12 @@
                     btn.classList.remove("tg-btn", "font-bold", "shadow-md");
                     btn.classList.add("tg-card", "font-medium", "opacity-80");
                 });
-                const activeBtn = document.getElementById("btn_" + dayKey);
-                activeBtn.classList.remove(
-                    "tg-card",
-                    "font-medium",
-                    "opacity-80",
-                );
-                activeBtn.classList.add("tg-btn", "font-bold", "shadow-md");
+                document
+                    .getElementById("btn_" + dayKey)
+                    .classList.add("tg-btn", "font-bold", "shadow-md");
+                document
+                    .getElementById("btn_" + dayKey)
+                    .classList.remove("tg-card", "font-medium", "opacity-80");
 
                 container.innerHTML = `<div class="tg-card p-4 rounded-2xl opacity-50 pulse text-center font-bold">Оновлюю дані...</div>`;
 
@@ -231,13 +222,8 @@
                     );
                     const data = await response.json();
 
-                    if (data.error) {
-                        container.innerHTML = `<div class="tg-card p-4 rounded-2xl text-red-500 font-bold text-center">❌ ${data.error}</div>`;
-                        return;
-                    }
-
                     document.getElementById("groupName").textContent =
-                        data.group;
+                        data.group || "Не обрано";
                     document.getElementById("dateHeader").textContent =
                         `Розклад на ${data.date}`;
 
@@ -246,8 +232,9 @@
                         return;
                     }
 
+                    // Малюємо картки
                     container.innerHTML = data.schedule
-                        .map((pair) => {
+                        .map((pair, index) => {
                             if (
                                 pair.name === "Немає" ||
                                 pair.name === "Вікно"
@@ -264,10 +251,11 @@
 
                             const extraInfo =
                                 subjectDetails[pair.name] ||
-                                "💡 Додаткової інформації про викладача поки немає.";
+                                "💡 Додаткової інформації про предмет поки немає.";
+                            const safeName = pair.name.replace(/'/g, "\\'"); // Безпечне ім'я для JS
 
                             return `
-                        <div class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 border-l-4 border-l-blue-500 transform origin-top" onclick="toggleCard(this)">
+                        <div class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 border-l-4 border-l-blue-500 transform origin-top" onclick="toggleCard(this, '${safeName}', ${index})">
                             <div class="flex justify-between items-center mb-2">
                                 <span class="text-xs font-bold px-2 py-0.5 bg-blue-500/20 text-blue-500 rounded-md">Пара ${pair.pair}</span>
                                 <span class="text-xs opacity-60 font-bold">${pair.time}</span>
@@ -283,8 +271,14 @@
                                 <div class="text-sm font-bold opacity-80">🚪 ${pair.aud}</div>
                             </div>
 
-                            <div class="extra-info hidden mt-4 pt-3 border-t border-gray-500/20 text-sm opacity-90 whitespace-pre-line leading-relaxed">
-                                ${extraInfo}
+                            <div class="extra-info hidden mt-4 pt-3 border-t border-gray-500/20 text-sm opacity-90">
+                                <div class="whitespace-pre-line leading-relaxed mb-4">${extraInfo}</div>
+
+                                <div class="bg-black/5 p-3 rounded-xl border border-gray-500/10" onclick="event.stopPropagation()">
+                                    <p class="text-xs font-bold uppercase tracking-wider opacity-60 mb-2">📝 Моє ДЗ / Нотатки</p>
+                                    <textarea id="noteInput_${index}" rows="2" class="w-full p-2 rounded-lg bg-white/50 border border-gray-500/20 text-sm outline-none focus:border-blue-500 mb-2 text-black" placeholder="Що задали?"></textarea>
+                                    <button id="saveBtn_${index}" onclick="saveUserNote(event, '${safeName}', ${index})" class="w-full py-2 bg-blue-500/10 text-blue-600 font-bold rounded-lg text-xs hover:bg-blue-500/20 transition-colors">Зберегти нотатку</button>
+                                </div>
                             </div>
                         </div>`;
                         })
@@ -294,23 +288,41 @@
                 }
             }
 
-            // --- 2. ЛОГІКА АКОРДЕОНА ---
-            function toggleCard(cardElement) {
+            // --- 2. ЛОГІКА АКОРДЕОНА І ЗАВАНТАЖЕННЯ НОТАТКИ ---
+            async function toggleCard(cardElement, subjectName, index) {
                 const extraInfo = cardElement.querySelector(".extra-info");
                 const chevron = cardElement.querySelector(".chevron");
+                const textarea = document.getElementById("noteInput_" + index);
 
                 if (extraInfo.classList.contains("hidden")) {
+                    // Відкриваємо картку
                     extraInfo.classList.remove("hidden");
                     cardElement.classList.add(
-                        "scale-[1.03]",
+                        "scale-[1.02]",
                         "shadow-lg",
                         "my-2",
                     );
                     chevron.style.transform = "rotate(180deg)";
+
+                    // Якщо нотатку ще не завантажили з бази - вантажимо її
+                    if (textarea.getAttribute("data-loaded") !== "true") {
+                        textarea.value = "⏳ Завантаження...";
+                        try {
+                            const res = await fetch(
+                                `/api/notes?userId=${currentUserId}&subject=${encodeURIComponent(subjectName)}`,
+                            );
+                            const data = await res.json();
+                            textarea.value = data.note || "";
+                            textarea.setAttribute("data-loaded", "true");
+                        } catch (e) {
+                            textarea.value = "";
+                        }
+                    }
                 } else {
+                    // Закриваємо картку
                     extraInfo.classList.add("hidden");
                     cardElement.classList.remove(
-                        "scale-[1.03]",
+                        "scale-[1.02]",
                         "shadow-lg",
                         "my-2",
                     );
@@ -318,34 +330,67 @@
                 }
             }
 
-            // --- 3. ВІДМАЛЬОВКА МОДАЛКИ ДЛЯ ГРУПИ ---
-            function openGroupModal() {
+            // --- 3. ЗБЕРЕЖЕННЯ ОСОБИСТОЇ НОТАТКИ ---
+            async function saveUserNote(event, subjectName, index) {
+                event.stopPropagation(); // Не дає картці закритися при кліку на кнопку
+                const noteText = document.getElementById(
+                    "noteInput_" + index,
+                ).value;
+                const btn = document.getElementById("saveBtn_" + index);
+
+                btn.innerText = "⏳ Збереження...";
+                try {
+                    await fetch("/api/notes", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            userId: currentUserId,
+                            subject: subjectName,
+                            note: noteText,
+                        }),
+                    });
+                    btn.innerText = "✅ Збережено";
+                    setTimeout(
+                        () => (btn.innerText = "Зберегти нотатку"),
+                        2000,
+                    );
+                } catch (e) {
+                    btn.innerText = "❌ Помилка";
+                }
+            }
+
+            // --- 4. ВІДМАЛЬОВКА МОДАЛКИ ДЛЯ ГРУПИ ---
+            async function openGroupModal() {
                 const overlay = document.getElementById("groupModalOverlay");
                 const content = document.getElementById("groupModalContent");
-
-                // Встановлюємо поточну групу в селект
-                const currentGroup =
-                    document.getElementById("groupName").textContent;
                 const select = document.getElementById("groupSelect");
-                if (
-                    Array.from(select.options).some(
-                        (opt) => opt.value === currentGroup,
-                    )
-                ) {
-                    select.value = currentGroup;
-                }
 
                 overlay.classList.remove("hidden");
                 setTimeout(() => {
                     overlay.classList.remove("opacity-0");
                     content.classList.remove("scale-95");
                 }, 10);
+                select.innerHTML = `<option>Завантаження...</option>`;
+
+                try {
+                    const res = await fetch("/api/groups");
+                    const data = await res.json();
+                    select.innerHTML = data.groups
+                        .map((g) => `<option value="${g}">${g}</option>`)
+                        .join("");
+
+                    const currentGroup =
+                        document.getElementById("groupName").textContent;
+                    if (data.groups.includes(currentGroup))
+                        select.value = currentGroup;
+                } catch (e) {
+                    select.innerHTML = `<option value="">❌ Помилка сервера</option>`;
+                }
             }
 
             function closeGroupModal() {
                 const overlay = document.getElementById("groupModalOverlay");
                 const content = document.getElementById("groupModalContent");
-
                 overlay.classList.add("opacity-0");
                 content.classList.add("scale-95");
                 setTimeout(() => overlay.classList.add("hidden"), 300);
@@ -354,7 +399,6 @@
             async function saveGroupFromModal() {
                 const newGroup = document.getElementById("groupSelect").value;
                 const btn = document.getElementById("saveGroupBtn");
-
                 btn.innerText = "⏳...";
                 btn.disabled = true;
 
@@ -369,9 +413,8 @@
                             group: newGroup,
                         }),
                     });
-
                     closeGroupModal();
-                    loadSchedule(currentDay); // Оновлюємо розклад
+                    loadSchedule(currentDay);
                 } catch (e) {
                     alert("Помилка збереження!");
                 } finally {
