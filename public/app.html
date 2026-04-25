@@ -39,6 +39,12 @@
                     opacity: 0.5;
                 }
             }
+            /* Стиль для селекта */
+            select {
+                -webkit-appearance: none;
+                -moz-appearance: none;
+                appearance: none;
+            }
         </style>
     </head>
     <body
@@ -58,7 +64,7 @@
 
             <div
                 class="mb-6 tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 flex justify-between items-center"
-                onclick="editGroup()"
+                onclick="openGroupModal()"
             >
                 <div>
                     <label
@@ -69,7 +75,7 @@
                         class="text-xl font-bold text-blue-500 flex items-center gap-2"
                     >
                         <span id="groupName">Завантаження...</span>
-                        <span class="text-sm opacity-50">✏️</span>
+                        <span class="text-sm opacity-50">🔽</span>
                     </div>
                 </div>
             </div>
@@ -125,6 +131,54 @@
             <div id="scheduleContainer" class="space-y-3 pb-10"></div>
         </div>
 
+        <div
+            id="groupModalOverlay"
+            class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm opacity-0 transition-opacity duration-300"
+        >
+            <div
+                class="tg-card w-full max-w-xs rounded-3xl p-6 shadow-2xl transform scale-95 transition-transform duration-300"
+                id="groupModalContent"
+            >
+                <h2 class="text-xl font-bold mb-4 text-center">
+                    Оберіть вашу групу
+                </h2>
+
+                <div class="relative mb-6">
+                    <select
+                        id="groupSelect"
+                        class="w-full p-4 rounded-xl bg-gray-500/10 border border-gray-500/20 outline-none text-lg font-bold text-center cursor-pointer"
+                    >
+                        <option value="101-К">101-К</option>
+                        <option value="102-К">102-К</option>
+                        <option value="201-К">201-К</option>
+                        <option value="306-К">306-К</option>
+                        <option value="307-К">307-К</option>
+                    </select>
+                    <div
+                        class="pointer-events-none absolute inset-y-0 right-4 flex items-center"
+                    >
+                        <span class="opacity-50">▼</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <button
+                        onclick="closeGroupModal()"
+                        class="w-1/2 py-3 rounded-xl font-bold bg-gray-500/20 opacity-80 hover:opacity-100"
+                    >
+                        Скасувати
+                    </button>
+                    <button
+                        onclick="saveGroupFromModal()"
+                        class="w-1/2 py-3 rounded-xl font-bold tg-btn shadow-md"
+                        id="saveGroupBtn"
+                    >
+                        Зберегти
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <script>
             const tg = window.Telegram.WebApp;
             tg.expand();
@@ -148,7 +202,6 @@
                     "👩‍🏫 Викладач: Петрова О.М.\n📝 Не забути зошит на 48 аркушів!",
                 "Історія України":
                     "👨‍🏫 Викладач: Шевченко В.І.\n📖 Читати конспект перед парою.",
-                // Додавай сюди інші предмети за таким самим зразком!
             };
 
             // --- 1. ЗАВАНТАЖЕННЯ РОЗКЛАДУ ---
@@ -207,12 +260,10 @@
                         </div>`;
                             }
 
-                            // Беремо інфу зі словника
                             const extraInfo =
                                 subjectDetails[pair.name] ||
                                 "💡 Додаткової інформації про викладача поки немає.";
 
-                            // КЛІКАБЕЛЬНА КАРТКА (АКОРДЕОН)
                             return `
                         <div class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 border-l-4 border-l-blue-500 transform origin-top" onclick="toggleCard(this)">
                             <div class="flex justify-between items-center mb-2">
@@ -265,39 +316,66 @@
                 }
             }
 
-            // --- 3. ЛОГІКА ЗМІНИ ГРУПИ ---
-            function editGroup() {
-                tg.showPopup(
-                    {
-                        title: "Зміна групи",
-                        message: "Введіть назву вашої нової групи:",
-                        buttons: [
-                            { id: "cancel", type: "cancel" },
-                            { id: "ok", type: "default", text: "Готово" },
-                        ],
-                    },
-                    async function (buttonId) {
-                        if (buttonId === "ok") {
-                            const newGroup = prompt("Введіть групу:");
-                            if (newGroup && newGroup.trim() !== "") {
-                                document.getElementById(
-                                    "groupName",
-                                ).textContent = "Оновлення...";
-                                await fetch("/api/save-group", {
-                                    method: "POST",
-                                    headers: {
-                                        "Content-Type": "application/json",
-                                    },
-                                    body: JSON.stringify({
-                                        userId: currentUserId,
-                                        group: newGroup,
-                                    }),
-                                });
-                                loadSchedule(currentDay); // Перемальовуємо розклад
-                            }
-                        }
-                    },
-                );
+            // --- 3. ВІДМАЛЬОВКА МОДАЛКИ ДЛЯ ГРУПИ ---
+            function openGroupModal() {
+                const overlay = document.getElementById("groupModalOverlay");
+                const content = document.getElementById("groupModalContent");
+
+                // Встановлюємо поточну групу в селект
+                const currentGroup =
+                    document.getElementById("groupName").textContent;
+                const select = document.getElementById("groupSelect");
+                if (
+                    Array.from(select.options).some(
+                        (opt) => opt.value === currentGroup,
+                    )
+                ) {
+                    select.value = currentGroup;
+                }
+
+                overlay.classList.remove("hidden");
+                setTimeout(() => {
+                    overlay.classList.remove("opacity-0");
+                    content.classList.remove("scale-95");
+                }, 10);
+            }
+
+            function closeGroupModal() {
+                const overlay = document.getElementById("groupModalOverlay");
+                const content = document.getElementById("groupModalContent");
+
+                overlay.classList.add("opacity-0");
+                content.classList.add("scale-95");
+                setTimeout(() => overlay.classList.add("hidden"), 300);
+            }
+
+            async function saveGroupFromModal() {
+                const newGroup = document.getElementById("groupSelect").value;
+                const btn = document.getElementById("saveGroupBtn");
+
+                btn.innerText = "⏳...";
+                btn.disabled = true;
+
+                try {
+                    document.getElementById("groupName").textContent =
+                        "Оновлення...";
+                    await fetch("/api/save-group", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            userId: currentUserId,
+                            group: newGroup,
+                        }),
+                    });
+
+                    closeGroupModal();
+                    loadSchedule(currentDay); // Оновлюємо розклад
+                } catch (e) {
+                    alert("Помилка збереження!");
+                } finally {
+                    btn.innerText = "Зберегти";
+                    btn.disabled = false;
+                }
             }
 
             loadSchedule("mon");
