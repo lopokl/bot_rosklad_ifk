@@ -286,6 +286,7 @@
                         </div>`;
                         })
                         .join("");
+                        highlightCurrentClass(dayKey);
                 } catch (err) {
                     container.innerHTML = `<div class="tg-card p-4 rounded-2xl text-center opacity-70">Помилка з'єднання</div>`;
                 }
@@ -423,6 +424,52 @@
             }
 
             loadSchedule("mon");
+
+            // --- 5. РОЗУМНА ПІДСВІТКА ПОТОЧНОЇ ПАРИ ---
+            function highlightCurrentClass(selectedDayKey) {
+                // Отримуємо залізно Київський час на телефоні
+                const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Kyiv" }));
+                const daysMap = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+                const realTodayKey = daysMap[now.getDay()];
+
+                // Якщо юзер дивиться розклад НЕ на сьогодні - нічого не підсвічуємо
+                if (selectedDayKey !== realTodayKey) return;
+
+                const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+                // Розклад дзвінків (час у хвилинах від початку доби)
+                const scheduleTimes = [
+                    { num: 1, start: 8 * 60 + 30, end: 9 * 60 + 50 },
+                    { num: 2, start: 10 * 60 + 5, end: 11 * 60 + 25 },
+                    { num: 3, start: 11 * 60 + 55, end: 13 * 60 + 15 },
+                    { num: 4, start: 13 * 60 + 30, end: 14 * 60 + 50 },
+                    { num: 5, start: 15 * 60 + 5, end: 16 * 60 + 25 },
+                    { num: 6, start: 16 * 60 + 40, end: 18 * 60 + 0 }
+                ];
+
+                let activePairNum = -1;
+                for (let slot of scheduleTimes) {
+                    if (currentMinutes >= slot.start && currentMinutes <= slot.end) {
+                        activePairNum = slot.num;
+                        break;
+                    }
+                }
+
+                // Якщо зараз йде якась пара - підсвічуємо її!
+                if (activePairNum !== -1) {
+                    const activeCard = document.getElementById(`pairCard_${activePairNum}`);
+                    const activeBadge = document.getElementById(`badge_${activePairNum}`);
+
+                    if (activeCard && activeBadge) {
+                        // Змінюємо кольори картки на зелені (Активні)
+                        activeCard.classList.remove('border-gray-500/10', 'border-l-blue-500');
+                        activeCard.classList.add('border-green-500', 'bg-green-500/5', 'shadow-green-500/20');
+
+                        // Додаємо бейджик, який блимає
+                        activeBadge.innerHTML = `<span class="px-2 py-0.5 bg-green-500 text-white font-black text-[10px] uppercase tracking-wider rounded-md animate-pulse shadow-md shadow-green-500/40">🔥 Йде зараз</span>`;
+                    }
+                }
+            }
         </script>
     </body>
 </html>
