@@ -45,6 +45,11 @@
                 -moz-appearance: none;
                 appearance: none;
             }
+            /* Фікс для списку груп (білий текст на білому фоні) */
+            select option {
+                background-color: #1f2937; /* Темно-сірий фон */
+                color: #ffffff; /* Білий текст */
+            }
         </style>
     </head>
     <body
@@ -148,9 +153,6 @@
                         id="groupSelect"
                         class="w-full p-4 rounded-xl bg-gray-500/10 border border-gray-500/20 outline-none text-lg font-bold text-center cursor-pointer"
                     >
-                        <option value="101-К">101-К</option>
-                        <option value="102-К">102-К</option>
-                        <option value="201-К">201-К</option>
                         <option value="306-К">306-К</option>
                         <option value="307-К">307-К</option>
                     </select>
