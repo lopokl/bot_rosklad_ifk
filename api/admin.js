@@ -117,6 +117,72 @@ module.exports = async (req, res) => {
 
       return res.status(400).json({ error: "Невідома дія" });
     }
+    // ==========================================
+    // 1. ВИДАЧА СТАТИСТИКИ ДЛЯ ДАШБОРДУ (GET)
+    // ==========================================
+    if (req.method === "GET") {
+      const userId = req.query.userId;
+      if (String(userId) !== process.env.ADMIN_ID) {
+        return res.status(403).json({ error: "Доступ заборонено" });
+      }
+
+      // Отримуємо статистику (твій старий код)
+      let [, keys] = await kv.scan(0, { match: "user_*", count: 2000 });
+      let totalUsers = 0,
+        notifOffCount = 0,
+        groupCounts = {};
+
+      for (let key of keys) {
+        if (key.includes("_notif")) {
+          const val = await kv.get(key);
+          if (val === false) notifOffCount++;
+          continue;
+        }
+        if (key.includes("_pinned")) continue;
+
+        totalUsers++;
+        const group = await kv.get(key);
+        if (group) groupCounts[group] = (groupCounts[group] || 0) + 1;
+      }
+
+      const notifOnCount = totalUsers - notifOffCount;
+      const topGroups = Object.entries(groupCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map((entry) => `${entry[0]} (${entry[1]} студ.)`);
+
+      const appConfig = (await kv.get("app_config")) || {
+        maintenance: false,
+        banner: "",
+      };
+
+      // 👇 ОСЬ ЦЕЙ НОВИЙ БЛОК: Дістаємо графік за 7 днів
+      const chartLabels = [];
+      const chartData = [];
+
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split("T")[0]; // YYYY-MM-DD
+
+        // Читаємо лічильник з бази (якщо ніхто не заходив - ставимо 0)
+        const visits = (await kv.get(`stat_visits_${dateStr}`)) || 0;
+
+        chartLabels.push(dateStr.slice(5)); // Зберігаємо як "04-28"
+        chartData.push(visits);
+      }
+
+      // Не забудь додати chartLabels та chartData сюди 👇
+      return res.json({
+        totalUsers,
+        notifOnCount,
+        notifOffCount,
+        topGroups,
+        appConfig,
+        chartLabels,
+        chartData,
+      });
+    }
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Помилка сервера" });

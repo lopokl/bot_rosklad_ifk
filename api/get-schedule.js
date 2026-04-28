@@ -50,6 +50,9 @@ module.exports = async (req, res) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
 
   try {
+    const dateStr = new Date().toISOString().split("T")[0]; // Отримаємо "2026-04-28"
+    await kv.incr(`stat_visits_${dateStr}`);
+
     const userId = req.query.userId;
     const dayKey = req.query.day || "mon";
     if (!userId) {
