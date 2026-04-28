@@ -50,10 +50,21 @@ module.exports = async (req, res) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
 
   try {
-    const dateStr = new Date().toISOString().split("T")[0]; // Отримаємо "2026-04-28"
-    await kv.incr(`stat_visits_${dateStr}`);
-
     const userId = req.query.userId;
+
+    // --- 📊 ЗБІР СТАТИСТИКИ ДЛЯ АДМІНКИ ---
+    if (userId) {
+      // 1. Рахуємо кліки по днях (для графіка)
+      const dateStr = new Date().toISOString().split("T")[0]; // напр. "2026-04-28"
+      await kv.incr(`stat_visits_${dateStr}`);
+
+      // 2. Записуємо "Хто і коли" (для логів)
+      const time = new Date().toLocaleTimeString("uk-UA", {
+        timeZone: "Europe/Kyiv",
+      });
+      await kv.lpush("recent_logs", `[${time}] ID: ${userId} відкрив розклад`);
+      await kv.ltrim("recent_logs", 0, 29); // Зберігаємо тільки останні 20 записів
+    }
     const dayKey = req.query.day || "mon";
     if (!userId) {
       return res.status(400).json({ error: "Немає ID користувача" });

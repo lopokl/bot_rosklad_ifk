@@ -31,18 +31,18 @@
                     opacity: 0.5;
                 }
             }
-            /* Стиль для перемикача (Toggle) */
-            .toggle-checkbox:checked {
-                right: 0;
-                border-color: #ef4444;
+            /* Ховаємо некрасивий скроллбар */
+            .custom-scroll::-webkit-scrollbar {
+                width: 4px;
             }
-            .toggle-checkbox:checked + .toggle-label {
-                background-color: #ef4444;
+            .custom-scroll::-webkit-scrollbar-thumb {
+                background: rgba(255, 255, 255, 0.2);
+                border-radius: 4px;
             }
         </style>
     </head>
-    <body class="p-5 antialiased pb-10">
-        <div class="max-w-md mx-auto">
+    <body class="p-5 antialiased">
+        <div class="max-w-md mx-auto pb-10">
             <h1 class="text-2xl font-extrabold mb-2 text-red-500">
                 👑 Панель Адміна
             </h1>
@@ -71,21 +71,17 @@
                 </div>
             </div>
 
-            <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
-                <p class="text-xs opacity-70 mb-2 uppercase font-bold">
-                    🔥 Топ-3 активні групи
-                </p>
-                <h2
-                    class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
-                >
-                    📊 Активність (Останні 7 днів)
-                </h2>
-                <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
-                    <canvas id="activityChart" height="150"></canvas>
-                </div>
+            <h2
+                class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
+            >
+                📚 Статистика по групах
+            </h2>
+            <div
+                class="tg-card p-4 rounded-2xl shadow-sm mb-6 max-h-48 overflow-y-auto custom-scroll"
+            >
                 <div
                     id="statGroups"
-                    class="text-sm font-medium space-y-1 pulse"
+                    class="text-sm font-medium space-y-2 pulse"
                 >
                     Завантаження...
                 </div>
@@ -94,93 +90,37 @@
             <h2
                 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
             >
-                📱 Керування Міні-додатком
+                📊 Відвідуваність (7 днів)
+            </h2>
+            <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
+                <canvas id="activityChart" height="200"></canvas>
+            </div>
+
+            <h2
+                class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
+            >
+                🕵️ Хто відкривав бота
             </h2>
             <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
                 <div
-                    class="flex items-center justify-between mb-4 pb-4 border-b border-gray-500/20"
+                    id="recentLogs"
+                    class="text-[11px] font-mono opacity-80 space-y-1 max-h-40 overflow-y-auto custom-scroll"
                 >
-                    <div>
-                        <p class="font-bold text-sm text-red-400">
-                            Технічні роботи
-                        </p>
-                        <p class="text-xs opacity-60">
-                            Вимкнути розклад для студентів
-                        </p>
-                    </div>
-                    <div
-                        class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in"
-                    >
-                        <input
-                            type="checkbox"
-                            name="toggle"
-                            id="maintenanceToggle"
-                            class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer z-10 transition-transform duration-200 ease-in-out"
-                        />
-                        <label
-                            for="maintenanceToggle"
-                            class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-500/50 cursor-pointer"
-                        ></label>
-                    </div>
+                    ⏳ Завантаження логів...
                 </div>
-
-                <div>
-                    <p class="font-bold text-sm mb-1 text-yellow-400">
-                        Глобальний банер
-                    </p>
-                    <p class="text-xs opacity-60 mb-2">
-                        Текст, який буде висіти вгорі додатку (залиште пустим,
-                        щоб вимкнути)
-                    </p>
-                    <input
-                        type="text"
-                        id="bannerInput"
-                        placeholder="Наприклад: Сьогодні скорочені пари!"
-                        class="w-full p-3 rounded-xl bg-black/20 border border-gray-500/30 outline-none focus:border-blue-500 mb-3 text-sm"
-                    />
-                </div>
-
-                <button
-                    id="saveConfigBtn"
-                    onclick="saveAppConfig()"
-                    class="w-full py-3 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold shadow-md transition-colors"
-                >
-                    💾 Зберегти налаштування
-                </button>
             </div>
 
             <h2
                 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
             >
-                ⚙️ Керування сервером
-            </h2>
-            <div
-                class="tg-card p-4 rounded-2xl shadow-sm mb-6 flex justify-between items-center"
-            >
-                <div>
-                    <p class="font-bold text-sm">Кеш розкладу</p>
-                    <p class="text-xs opacity-60">Очистити пам'ять таблиць</p>
-                </div>
-                <button
-                    id="cacheBtn"
-                    onclick="clearCache()"
-                    class="px-4 py-2 bg-yellow-600 text-white font-bold rounded-lg shadow-md text-sm"
-                >
-                    Очистити
-                </button>
-            </div>
-
-            <h2
-                class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
-            >
-                ✉️ Розсилка повідомлень
+                ✉️ Повідомлення
             </h2>
             <div class="tg-card p-4 rounded-2xl shadow-sm mb-4">
                 <textarea
                     id="broadcastMsg"
                     rows="3"
                     class="w-full p-3 rounded-xl bg-black/20 border border-gray-500/30 outline-none focus:border-blue-500 mb-3 text-sm"
-                    placeholder="Введіть текст оголошення для всіх..."
+                    placeholder="Введіть текст оголошення..."
                 ></textarea>
                 <button
                     id="sendBtn"
@@ -203,12 +143,7 @@
             tg.ready();
 
             const adminId = tg.initDataUnsafe?.user?.id;
-
-            function showStatus(html) {
-                const statusEl = document.getElementById("status");
-                statusEl.innerHTML = html;
-                setTimeout(() => (statusEl.innerHTML = ""), 5000);
-            }
+            let chartInstance = null;
 
             async function loadStats() {
                 if (!adminId) return;
@@ -222,161 +157,102 @@
                         return;
                     }
 
-                    // Статистика
                     document.getElementById("statUsers").innerText =
                         data.totalUsers || 0;
                     document.getElementById("statNotif").innerText =
                         data.notifOnCount || 0;
 
+                    // Заповнюємо список ВСІХ груп
                     const groupsBox = document.getElementById("statGroups");
                     groupsBox.classList.remove("pulse");
-                    if (data.topGroups && data.topGroups.length > 0) {
-                        groupsBox.innerHTML = data.topGroups
-                            .map(
-                                (g, i) =>
-                                    `<p>${i + 1}. <span class="text-blue-400">${g}</span></p>`,
-                            )
+                    if (data.allGroups && data.allGroups.length > 0) {
+                        groupsBox.innerHTML = data.allGroups
+                            .map((g, i) => {
+                                let parts = g.split(" — ");
+                                return `<div class="flex justify-between border-b border-gray-500/10 pb-1">
+                                    <span>${i + 1}. <span class="text-blue-400 font-bold">${parts[0]}</span></span>
+                                    <span class="opacity-70">${parts[1]}</span>
+                                </div>`;
+                            })
                             .join("");
                     } else {
                         groupsBox.innerHTML =
-                            "<p class='opacity-50'>Ще немає даних</p>";
+                            "<p class='opacity-50'>Немає даних</p>";
                     }
 
-                    // Заповнюємо конфіги
-                    if (data.appConfig) {
-                        document.getElementById("maintenanceToggle").checked =
-                            data.appConfig.maintenance;
-                        document.getElementById("bannerInput").value =
-                            data.appConfig.banner || "";
+                    // Заповнюємо логи
+                    const logsBox = document.getElementById("recentLogs");
+                    if (data.recentLogs && data.recentLogs.length > 0) {
+                        logsBox.innerHTML = data.recentLogs
+                            .map((log) => {
+                                // Робимо ID синім для краси
+                                const formattedLog = log.replace(
+                                    /ID: (\d+)/,
+                                    'ID: <span class="text-blue-400">$1</span>',
+                                );
+                                return `<p>${formattedLog}</p>`;
+                            })
+                            .join("");
+                    } else {
+                        logsBox.innerHTML = "<p>Ще ніхто не заходив</p>";
                     }
 
-                    // Створюємо графік активності
-                    if (data.chartLabels && data.chartData) {
-                        const ctx = document
-                            .getElementById("activityChart")
-                            .getContext("2d");
-                        new Chart(ctx, {
-                            type: "line",
-                            data: {
-                                labels: data.chartLabels,
-                                datasets: [
-                                    {
-                                        label: "Активність",
-                                        data: data.chartData,
-                                        borderColor: "rgb(59, 130, 246)",
-                                        backgroundColor:
-                                            "rgba(59, 130, 246, 0.2)",
-                                        tension: 0.4,
-                                    },
-                                ],
-                            },
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                scales: {
-                                    y: {
-                                        beginAtZero: true,
+                    // Малюємо графік
+                    const ctx = document
+                        .getElementById("activityChart")
+                        .getContext("2d");
+                    if (chartInstance) chartInstance.destroy();
+                    chartInstance = new Chart(ctx, {
+                        type: "line",
+                        data: {
+                            labels: data.chartLabels,
+                            datasets: [
+                                {
+                                    label: "Відкрито розклад",
+                                    data: data.chartData,
+                                    borderColor: "#3b82f6",
+                                    backgroundColor: "rgba(59, 130, 246, 0.2)",
+                                    borderWidth: 3,
+                                    fill: true,
+                                    tension: 0.4,
+                                },
+                            ],
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        stepSize: 1,
+                                        color: "rgba(255,255,255,0.6)",
                                     },
                                 },
+                                x: {
+                                    ticks: { color: "rgba(255,255,255,0.6)" },
+                                },
                             },
-                        });
-                    }
+                        },
+                    });
                 } catch (e) {
                     console.error(e);
-                }
-            }
-
-            // ЗБЕРЕЖЕННЯ КОНФІГУ ДОДАТКУ
-            async function saveAppConfig() {
-                const btn = document.getElementById("saveConfigBtn");
-                if (!adminId) return;
-
-                const isMaintenance =
-                    document.getElementById("maintenanceToggle").checked;
-                const bannerText = document
-                    .getElementById("bannerInput")
-                    .value.trim();
-
-                btn.disabled = true;
-                btn.innerText = "⏳ Збереження...";
-                btn.classList.add("opacity-50");
-
-                try {
-                    const response = await fetch("/api/admin", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            userId: adminId,
-                            action: "update_config",
-                            configData: {
-                                maintenance: isMaintenance,
-                                banner: bannerText,
-                            },
-                        }),
-                    });
-                    const data = await response.json();
-
-                    if (data.error)
-                        showStatus(
-                            `<span class="text-red-500">❌ ${data.error}</span>`,
-                        );
-                    else
-                        showStatus(
-                            `<span class="text-green-500">${data.message}</span>`,
-                        );
-                } catch (err) {
-                    showStatus(
-                        `<span class="text-red-500">❌ Помилка з'єднання</span>`,
-                    );
-                } finally {
-                    btn.disabled = false;
-                    btn.innerText = "💾 Зберегти налаштування";
-                    btn.classList.remove("opacity-50");
-                }
-            }
-
-            // Інші функції (Кеш, Розсилка) залишаються
-            async function clearCache() {
-                const btn = document.getElementById("cacheBtn");
-                if (!adminId) return;
-                btn.disabled = true;
-                btn.innerText = "⏳...";
-                btn.classList.add("opacity-50");
-                try {
-                    const response = await fetch("/api/admin", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            userId: adminId,
-                            action: "clear_cache",
-                        }),
-                    });
-                    const data = await response.json();
-                    if (data.error)
-                        showStatus(
-                            `<span class="text-red-500">❌ ${data.error}</span>`,
-                        );
-                    else
-                        showStatus(
-                            `<span class="text-green-500">${data.message}</span>`,
-                        );
-                } catch (err) {
-                    showStatus(`<span class="text-red-500">❌ Помилка</span>`);
-                } finally {
-                    btn.disabled = false;
-                    btn.innerText = "Очистити";
-                    btn.classList.remove("opacity-50");
                 }
             }
 
             async function sendBroadcast() {
                 const msg = document.getElementById("broadcastMsg").value;
                 const btn = document.getElementById("sendBtn");
+                const status = document.getElementById("status");
                 if (!msg.trim()) {
                     tg.showAlert("Введіть текст!");
                     return;
                 }
-                if (!adminId) return;
+                if (!adminId) {
+                    status.innerHTML = `<span class="text-red-500">Помилка ID</span>`;
+                    return;
+                }
+
                 btn.disabled = true;
                 btn.innerText = "⏳...";
                 btn.classList.add("opacity-50");
@@ -384,30 +260,22 @@
                     const response = await fetch("/api/admin", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            userId: adminId,
-                            action: "broadcast",
-                            message: msg,
-                        }),
+                        body: JSON.stringify({ userId: adminId, message: msg }),
                     });
                     const data = await response.json();
-                    if (data.error)
-                        showStatus(
-                            `<span class="text-red-500">❌ ${data.error}</span>`,
-                        );
+                    if (data.error) status.innerHTML = `❌ ${data.error}`;
                     else {
-                        showStatus(
-                            `<span class="text-green-500">${data.message}</span>`,
-                        );
+                        status.innerHTML = `✅ Відправлено ${data.count} юзерам!`;
                         document.getElementById("broadcastMsg").value = "";
                     }
                 } catch (err) {
-                    showStatus(`<span class="text-red-500">❌ Помилка</span>`);
+                    status.innerHTML = `❌ Помилка з'єднання`;
                 } finally {
                     btn.disabled = false;
                     btn.innerText = "Відправити всім";
                     btn.classList.remove("opacity-50");
                 }
+                setTimeout(() => (status.innerHTML = ""), 5000);
             }
 
             loadStats();
