@@ -242,8 +242,15 @@
                 try {
                     const res = await fetch("/api/groups");
                     const data = await res.json();
+                    
+                    console.log("✅ Групи завантажені:", data.groups);
 
                     const select = document.getElementById("groupSelect");
+                    if (!select) {
+                        console.warn("⚠️ Елемент groupSelect не знайдено");
+                        return;
+                    }
+
                     const currentGroup =
                         document.getElementById("groupName").textContent;
 
@@ -258,7 +265,7 @@
                         select.value = currentGroup;
                     }
                 } catch (error) {
-                    console.error("Помилка завантаження груп:", error);
+                    console.error("❌ Помилка завантаження груп:", error);
                 }
             }
 
@@ -565,11 +572,12 @@
             async function initApp() {
                 const isOnline = await checkAppStatus();
                 if (isOnline) {
-                    fetchGroups();
+                    await fetchGroups();
                     loadSchedule("mon");
                 }
             }
 
+            // Завантажуємо групи при першому завантаженні
             initApp();
         </script>
     </body>
