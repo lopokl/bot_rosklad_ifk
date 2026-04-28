@@ -11,6 +11,9 @@ module.exports = async (req, res) => {
   if (req.method === "OPTIONS") return res.status(200).end();
 
   try {
+    // ==========================================
+    // 1. ВИДАЧА СТАТИСТИКИ ТА КОНФІГІВ (GET)
+    // ==========================================
     if (req.method === "GET") {
       const userId = req.query.userId;
       if (String(userId) !== process.env.ADMIN_ID)
@@ -34,8 +37,6 @@ module.exports = async (req, res) => {
       }
 
       const notifOnCount = totalUsers - notifOffCount;
-
-      // 👇 Формуємо повний список ВСІХ груп (від найбільшої до найменшої)
       const allGroups = Object.entries(groupCounts)
         .sort((a, b) => b[1] - a[1])
         .map((entry) => `${entry[0]} — ${entry[1]} студ.`);
@@ -52,8 +53,14 @@ module.exports = async (req, res) => {
         chartData.push(visits);
       }
 
-      // Логи (Останні 30 дій)
+      // Логи
       const recentLogs = (await kv.lrange("recent_logs", 0, 29)) || [];
+
+      // Конфіг додатку (Тех. роботи і банер)
+      const appConfig = (await kv.get("app_config")) || {
+        maintenance: false,
+        banner: "",
+      };
 
       return res.json({
         totalUsers,
@@ -63,34 +70,63 @@ module.exports = async (req, res) => {
         chartLabels,
         chartData,
         recentLogs,
+        appConfig,
       });
     }
 
+    // ==========================================
+    // 2. ДІЇ АДМІНІСТРАТОРА (POST)
+    // ==========================================
     if (req.method === "POST") {
-      const { userId, message } = req.body;
+      const { userId, action, message, configData } = req.body;
       if (String(userId) !== process.env.ADMIN_ID)
         return res.status(403).json({ error: "Доступ заборонено" });
-      if (!message || message.trim() === "")
-        return res.status(400).json({ error: "Повідомлення порожнє" });
 
-      let [, keys] = await kv.scan(0, { match: "user_*", count: 1000 });
-      let userIds = keys
-        .filter((k) => !k.includes("_notif"))
-        .map((k) => k.replace("user_", ""));
-      let successCount = 0;
-      const broadcastText = `📢 *Оголошення від Адміністратора:*\n\n${message}`;
+      // ДІЯ: РОЗСИЛКА
+      if (action === "broadcast") {
+        if (!message || message.trim() === "")
+          return res.status(400).json({ error: "Повідомлення порожнє" });
+        let [, keys] = await kv.scan(0, { match: "user_*", count: 1000 });
+        let userIds = keys
+          .filter((k) => !k.includes("_notif"))
+          .map((k) => k.replace("user_", ""));
+        let successCount = 0;
+        const broadcastText = `📢 *Оголошення від Адміністратора:*\n\n${message}`;
 
-      for (let uid of userIds) {
-        try {
-          await bot.telegram.sendMessage(uid, broadcastText, {
-            parse_mode: "Markdown",
-          });
-          successCount++;
-        } catch (e) {
-          /* ігноруємо помилки */
+        for (let uid of userIds) {
+          try {
+            await bot.telegram.sendMessage(uid, broadcastText, {
+              parse_mode: "Markdown",
+            });
+            successCount++;
+          } catch (e) {
+            /* ігноруємо */
+          }
         }
+        return res.json({
+          success: true,
+          count: successCount,
+          message: `✅ Відправлено ${successCount} юзерам!`,
+        });
       }
-      return res.json({ success: true, count: successCount });
+
+      // ДІЯ: ОЧИЩЕННЯ КЕШУ
+      if (action === "clear_cache") {
+        const keys = await kv.keys("cache_*");
+        if (keys.length > 0) await kv.del(...keys);
+        return res.json({ success: true, message: `✅ Кеш успішно очищено!` });
+      }
+
+      // ДІЯ: ОНОВЛЕННЯ КОНФІГУ ДОДАТКУ
+      if (action === "update_config") {
+        await kv.set("app_config", configData);
+        return res.json({
+          success: true,
+          message: "✅ Налаштування збережено!",
+        });
+      }
+
+      return res.status(400).json({ error: "Невідома дія" });
     }
   } catch (error) {
     console.error(error);

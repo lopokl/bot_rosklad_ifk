@@ -31,13 +31,19 @@
                     opacity: 0.5;
                 }
             }
-            /* Ховаємо некрасивий скроллбар */
             .custom-scroll::-webkit-scrollbar {
                 width: 4px;
             }
             .custom-scroll::-webkit-scrollbar-thumb {
                 background: rgba(255, 255, 255, 0.2);
                 border-radius: 4px;
+            }
+            .toggle-checkbox:checked {
+                right: 0;
+                border-color: #ef4444;
+            }
+            .toggle-checkbox:checked + .toggle-label {
+                background-color: #ef4444;
             }
         </style>
     </head>
@@ -113,6 +119,76 @@
             <h2
                 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
             >
+                📱 Керування Міні-додатком
+            </h2>
+            <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
+                <div
+                    class="flex items-center justify-between mb-4 pb-4 border-b border-gray-500/20"
+                >
+                    <div>
+                        <p class="font-bold text-sm text-red-400">
+                            Технічні роботи
+                        </p>
+                        <p class="text-xs opacity-60">Вимкнути розклад</p>
+                    </div>
+                    <div
+                        class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in"
+                    >
+                        <input
+                            type="checkbox"
+                            id="maintenanceToggle"
+                            class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer z-10 transition-transform duration-200 ease-in-out"
+                        />
+                        <label
+                            for="maintenanceToggle"
+                            class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-500/50 cursor-pointer"
+                        ></label>
+                    </div>
+                </div>
+                <div>
+                    <p class="font-bold text-sm mb-1 text-yellow-400">
+                        Глобальний банер
+                    </p>
+                    <input
+                        type="text"
+                        id="bannerInput"
+                        placeholder="Текст банера..."
+                        class="w-full p-3 rounded-xl bg-black/20 border border-gray-500/30 outline-none focus:border-blue-500 mb-3 text-sm"
+                    />
+                </div>
+                <button
+                    id="saveConfigBtn"
+                    onclick="saveAppConfig()"
+                    class="w-full py-3 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold shadow-md transition-colors"
+                >
+                    💾 Зберегти налаштування
+                </button>
+            </div>
+
+            <h2
+                class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
+            >
+                ⚙️ Керування сервером
+            </h2>
+            <div
+                class="tg-card p-4 rounded-2xl shadow-sm mb-6 flex justify-between items-center"
+            >
+                <div>
+                    <p class="font-bold text-sm">Кеш розкладу</p>
+                    <p class="text-xs opacity-60">Очистити пам'ять таблиць</p>
+                </div>
+                <button
+                    id="cacheBtn"
+                    onclick="clearCache()"
+                    class="px-4 py-2 bg-yellow-600 text-white font-bold rounded-lg shadow-md text-sm"
+                >
+                    Очистити
+                </button>
+            </div>
+
+            <h2
+                class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
+            >
                 ✉️ Повідомлення
             </h2>
             <div class="tg-card p-4 rounded-2xl shadow-sm mb-4">
@@ -145,6 +221,12 @@
             const adminId = tg.initDataUnsafe?.user?.id;
             let chartInstance = null;
 
+            function showStatus(html) {
+                const statusEl = document.getElementById("status");
+                statusEl.innerHTML = html;
+                setTimeout(() => (statusEl.innerHTML = ""), 5000);
+            }
+
             async function loadStats() {
                 if (!adminId) return;
                 try {
@@ -162,7 +244,7 @@
                     document.getElementById("statNotif").innerText =
                         data.notifOnCount || 0;
 
-                    // Заповнюємо список ВСІХ груп
+                    // Заповнюємо групи
                     const groupsBox = document.getElementById("statGroups");
                     groupsBox.classList.remove("pulse");
                     if (data.allGroups && data.allGroups.length > 0) {
@@ -185,7 +267,6 @@
                     if (data.recentLogs && data.recentLogs.length > 0) {
                         logsBox.innerHTML = data.recentLogs
                             .map((log) => {
-                                // Робимо ID синім для краси
                                 const formattedLog = log.replace(
                                     /ID: (\d+)/,
                                     'ID: <span class="text-blue-400">$1</span>',
@@ -195,6 +276,14 @@
                             .join("");
                     } else {
                         logsBox.innerHTML = "<p>Ще ніхто не заходив</p>";
+                    }
+
+                    // Заповнюємо налаштування додатку
+                    if (data.appConfig) {
+                        document.getElementById("maintenanceToggle").checked =
+                            data.appConfig.maintenance;
+                        document.getElementById("bannerInput").value =
+                            data.appConfig.banner || "";
                     }
 
                     // Малюємо графік
@@ -240,16 +329,93 @@
                 }
             }
 
+            // ЗБЕРЕЖЕННЯ КОНФІГУ
+            async function saveAppConfig() {
+                const btn = document.getElementById("saveConfigBtn");
+                if (!adminId) return;
+                const isMaintenance =
+                    document.getElementById("maintenanceToggle").checked;
+                const bannerText = document
+                    .getElementById("bannerInput")
+                    .value.trim();
+                btn.disabled = true;
+                btn.innerText = "⏳ Збереження...";
+                btn.classList.add("opacity-50");
+                try {
+                    const response = await fetch("/api/admin", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            userId: adminId,
+                            action: "update_config",
+                            configData: {
+                                maintenance: isMaintenance,
+                                banner: bannerText,
+                            },
+                        }),
+                    });
+                    const data = await response.json();
+                    if (data.error)
+                        showStatus(
+                            `<span class="text-red-500">❌ ${data.error}</span>`,
+                        );
+                    else
+                        showStatus(
+                            `<span class="text-green-500">${data.message}</span>`,
+                        );
+                } catch (err) {
+                    showStatus(`<span class="text-red-500">❌ Помилка</span>`);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = "💾 Зберегти налаштування";
+                    btn.classList.remove("opacity-50");
+                }
+            }
+
+            // ОЧИЩЕННЯ КЕШУ
+            async function clearCache() {
+                const btn = document.getElementById("cacheBtn");
+                if (!adminId) return;
+                btn.disabled = true;
+                btn.innerText = "⏳...";
+                btn.classList.add("opacity-50");
+                try {
+                    const response = await fetch("/api/admin", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            userId: adminId,
+                            action: "clear_cache",
+                        }),
+                    });
+                    const data = await response.json();
+                    if (data.error)
+                        showStatus(
+                            `<span class="text-red-500">❌ ${data.error}</span>`,
+                        );
+                    else
+                        showStatus(
+                            `<span class="text-green-500">${data.message}</span>`,
+                        );
+                } catch (err) {
+                    showStatus(`<span class="text-red-500">❌ Помилка</span>`);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = "Очистити";
+                    btn.classList.remove("opacity-50");
+                }
+            }
+
+            // РОЗСИЛКА
             async function sendBroadcast() {
                 const msg = document.getElementById("broadcastMsg").value;
                 const btn = document.getElementById("sendBtn");
-                const status = document.getElementById("status");
                 if (!msg.trim()) {
                     tg.showAlert("Введіть текст!");
                     return;
                 }
                 if (!adminId) {
-                    status.innerHTML = `<span class="text-red-500">Помилка ID</span>`;
+                    showStatus(`<span class="text-red-500">Помилка ID</span>`);
                     return;
                 }
 
@@ -260,22 +426,25 @@
                     const response = await fetch("/api/admin", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ userId: adminId, message: msg }),
+                        body: JSON.stringify({
+                            userId: adminId,
+                            action: "broadcast",
+                            message: msg,
+                        }),
                     });
                     const data = await response.json();
-                    if (data.error) status.innerHTML = `❌ ${data.error}`;
+                    if (data.error) showStatus(`❌ ${data.error}`);
                     else {
-                        status.innerHTML = `✅ Відправлено ${data.count} юзерам!`;
+                        showStatus(`✅ Відправлено ${data.count} юзерам!`);
                         document.getElementById("broadcastMsg").value = "";
                     }
                 } catch (err) {
-                    status.innerHTML = `❌ Помилка з'єднання`;
+                    showStatus(`❌ Помилка з'єднання`);
                 } finally {
                     btn.disabled = false;
                     btn.innerText = "Відправити всім";
                     btn.classList.remove("opacity-50");
                 }
-                setTimeout(() => (status.innerHTML = ""), 5000);
             }
 
             loadStats();
