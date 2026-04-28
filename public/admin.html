@@ -7,15 +7,6 @@
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <script src="https://cdn.tailwindcss.com"></script>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        ``` **2. Додай блок графіка:** Прогорни до місця, де в тебе закінчується
-        блок *"🔥 Топ-3 активні групи"*, і відразу після нього встав полотно для
-        графіка: ```html
-        <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
-            📊 Активність (Останні 7 днів)
-        </h2>
-        <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
-            <canvas id="activityChart" height="150"></canvas>
-        </div>
         <style>
             body {
                 background-color: var(--tg-theme-bg-color, #1f2937);
@@ -84,6 +75,14 @@
                 <p class="text-xs opacity-70 mb-2 uppercase font-bold">
                     🔥 Топ-3 активні групи
                 </p>
+                <h2
+                    class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
+                >
+                    📊 Активність (Останні 7 днів)
+                </h2>
+                <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
+                    <canvas id="activityChart" height="150"></canvas>
+                </div>
                 <div
                     id="statGroups"
                     class="text-sm font-medium space-y-1 pulse"
