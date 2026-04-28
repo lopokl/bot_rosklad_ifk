@@ -8,13 +8,11 @@ module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
+  if (req.method === "OPTIONS") return res.status(200).end();
 
   try {
     // ==========================================
-    // 1. ВИДАЧА СТАТИСТИКИ ДЛЯ ДАШБОРДУ (GET)
+    // 1. ВИДАЧА СТАТИСТИКИ ТА КОНФІГІВ (GET)
     // ==========================================
     if (req.method === "GET") {
       const userId = req.query.userId;
@@ -22,71 +20,102 @@ module.exports = async (req, res) => {
         return res.status(403).json({ error: "Доступ заборонено" });
       }
 
-      // Скануємо базу
+      // Отримуємо статистику
       let [, keys] = await kv.scan(0, { match: "user_*", count: 2000 });
-
-      let totalUsers = 0;
-      let groupCounts = {};
-      let notifOffCount = 0;
+      let totalUsers = 0,
+        notifOffCount = 0,
+        groupCounts = {};
 
       for (let key of keys) {
         if (key.includes("_notif")) {
-          // Рахуємо тих, хто вимкнув будильник
           const val = await kv.get(key);
           if (val === false) notifOffCount++;
           continue;
         }
-        if (key.includes("_pinned")) continue; // Пропускаємо технічні ключі груп
+        if (key.includes("_pinned")) continue;
 
-        // Рахуємо користувача та його групу
         totalUsers++;
         const group = await kv.get(key);
-        if (group) {
-          groupCounts[group] = (groupCounts[group] || 0) + 1;
-        }
+        if (group) groupCounts[group] = (groupCounts[group] || 0) + 1;
       }
 
       const notifOnCount = totalUsers - notifOffCount;
-
-      // Визначаємо ТОП-3 найпопулярніші групи
       const topGroups = Object.entries(groupCounts)
-        .sort((a, b) => b[1] - a[1]) // Сортуємо за спаданням
-        .slice(0, 3) // Беремо перші 3
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
         .map((entry) => `${entry[0]} (${entry[1]} студ.)`);
 
-      return res.json({ totalUsers, notifOnCount, notifOffCount, topGroups });
+      // Отримуємо конфіг додатку (банер і тех. роботи)
+      const appConfig = (await kv.get("app_config")) || {
+        maintenance: false,
+        banner: "",
+      };
+
+      return res.json({
+        totalUsers,
+        notifOnCount,
+        notifOffCount,
+        topGroups,
+        appConfig,
+      });
     }
 
     // ==========================================
-    // 2. МАСОВА РОЗСИЛКА (POST) - Твій старий код
+    // 2. ДІЇ АДМІНІСТРАТОРА (POST)
     // ==========================================
     if (req.method === "POST") {
-      const { userId, message } = req.body;
+      const { userId, action, message, configData } = req.body;
+
       if (String(userId) !== process.env.ADMIN_ID) {
         return res.status(403).json({ error: "Доступ заборонено" });
       }
-      if (!message || message.trim() === "") {
-        return res.status(400).json({ error: "Повідомлення порожнє" });
+
+      // ДІЯ 1: ОЧИЩЕННЯ КЕШУ
+      if (action === "clear_cache") {
+        const keys = await kv.keys("cache_*");
+        if (keys.length > 0) await kv.del(...keys);
+        return res.json({ success: true, message: `✅ Кеш успішно очищено!` });
       }
 
-      let [, keys] = await kv.scan(0, { match: "user_*", count: 1000 });
-      let userIds = keys
-        .filter((k) => !k.includes("_notif"))
-        .map((k) => k.replace("user_", ""));
-      let successCount = 0;
-      const broadcastText = `📢 *Оголошення від Адміністратора:*\n\n${message}`;
+      // ДІЯ 2: РОЗСИЛКА ПОВІДОМЛЕНЬ
+      if (action === "broadcast") {
+        if (!message || message.trim() === "")
+          return res.status(400).json({ error: "Повідомлення порожнє" });
 
-      for (let uid of userIds) {
-        try {
-          await bot.telegram.sendMessage(uid, broadcastText, {
-            parse_mode: "Markdown",
-          });
-          successCount++;
-        } catch (e) {
-          console.log(`Помилка для ${uid}`);
+        let [, keys] = await kv.scan(0, { match: "user_*", count: 1000 });
+        let userIds = keys
+          .filter((k) => !k.includes("_notif"))
+          .map((k) => k.replace("user_", ""));
+        let successCount = 0;
+        const broadcastText = `📢 *Оголошення від Адміністратора:*\n\n${message}`;
+
+        for (let uid of userIds) {
+          try {
+            await bot.telegram.sendMessage(uid, broadcastText, {
+              parse_mode: "Markdown",
+            });
+            successCount++;
+          } catch (e) {
+            /* Ігноруємо помилки заблокованих ботів */
+          }
         }
+        return res.json({
+          success: true,
+          count: successCount,
+          message: `✅ Відправлено ${successCount} юзерам!`,
+        });
       }
-      return res.json({ success: true, count: successCount });
+
+      // ДІЯ 3: ОНОВЛЕННЯ НАЛАШТУВАНЬ ДОДАТКУ (Банер та Тех. роботи)
+      if (action === "update_config") {
+        await kv.set("app_config", configData);
+        return res.json({
+          success: true,
+          message: "✅ Налаштування збережено!",
+        });
+      }
+
+      return res.status(400).json({ error: "Невідома дія" });
     }
   } catch (error) {
     console.error(error);
