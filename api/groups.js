@@ -4,6 +4,6 @@ module.exports = async (req, res) => {
   // Дозволяємо запити з браузера
   res.setHeader("Access-Control-Allow-Origin", "*");
 
-  // Віддаємо масив груп
+  // Беремо список з конфігу і віддаємо його браузеру
   res.status(200).json({ groups: groupsList || [] });
 };
