@@ -52,13 +52,19 @@
     </head>
     <body
         class="p-5 antialiased transition-colors duration-300 relative overflow-x-hidden"
-        <div id="globalBanner" class="hidden bg-gradient-to-r from-red-500 to-orange-500 text-white text-center p-3 font-bold text-sm shadow-md z-50 w-full mb-4 animate-pulse"></div>
     >
+        <div
+            id="globalBanner"
+            class="hidden bg-gradient-to-r from-red-500 to-orange-500 text-white text-center p-3 font-bold text-sm shadow-md z-50 w-full mb-4 animate-pulse rounded-xl"
+        ></div>
+
         <div class="max-w-md mx-auto">
             <div class="flex items-center justify-between mb-6">
                 <div>
                     <h1 class="text-2xl font-extrabold tracking-tight">
-                        Привіт, <span id="userName">Студент</span>! 👋
+                        Привіт,
+                        <span id="userName" class="text-blue-500">Студент</span
+                        >! 👋
                     </h1>
                     <p class="text-sm opacity-60 mt-1" id="dateHeader">
                         Твій кишеньковий розклад
@@ -67,7 +73,7 @@
             </div>
 
             <div
-                class="mb-6 tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 flex justify-between items-center"
+                class="mb-6 tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 flex justify-between items-center cursor-pointer hover:bg-gray-500/5 transition-colors"
                 onclick="openGroupModal()"
             >
                 <div>
@@ -79,8 +85,12 @@
                         class="text-xl font-bold text-blue-500 flex items-center gap-2"
                     >
                         <span id="groupName">Завантаження...</span>
-                        <span class="text-sm opacity-50">🔽</span>
                     </div>
+                </div>
+                <div
+                    class="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500"
+                >
+                    <span class="text-lg">⚙️</span>
                 </div>
             </div>
 
@@ -137,39 +147,41 @@
 
         <div
             id="groupModalOverlay"
-            class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm opacity-0 transition-opacity duration-300"
+            class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm opacity-0 transition-opacity duration-300"
         >
             <div
                 class="tg-card w-full max-w-xs rounded-3xl p-6 shadow-2xl transform scale-95 transition-transform duration-300"
                 id="groupModalContent"
             >
                 <h2 class="text-xl font-bold mb-4 text-center">
-                    Оберіть вашу групу
+                    📚 Оберіть вашу групу
                 </h2>
+
                 <div class="relative mb-6">
                     <select
                         id="groupSelect"
-                        class="w-full p-4 rounded-xl bg-gray-500/10 border border-gray-500/20 outline-none text-lg font-bold text-center cursor-pointer"
+                        class="w-full p-4 rounded-xl bg-black/10 border border-gray-500/20 outline-none text-lg font-bold text-center cursor-pointer appearance-none"
                     >
-                        <option value="306-К">306-К</option>
-                        <option value="307-К">307-К</option>
+                        <option value="">⏳ Завантаження груп...</option>
                     </select>
+
                     <div
                         class="pointer-events-none absolute inset-y-0 right-4 flex items-center"
                     >
                         <span class="opacity-50">▼</span>
                     </div>
                 </div>
+
                 <div class="flex gap-3">
                     <button
                         onclick="closeGroupModal()"
-                        class="w-1/2 py-3 rounded-xl font-bold bg-gray-500/20 opacity-80 hover:opacity-100"
+                        class="w-1/2 py-3 rounded-xl font-bold bg-gray-500/20 opacity-80 hover:opacity-100 transition-opacity"
                     >
                         Скасувати
                     </button>
                     <button
                         onclick="saveGroupFromModal()"
-                        class="w-1/2 py-3 rounded-xl font-bold tg-btn shadow-md"
+                        class="w-1/2 py-3 rounded-xl font-bold tg-btn shadow-md active:scale-95 transition-transform"
                         id="saveGroupBtn"
                     >
                         Зберегти
@@ -179,125 +191,148 @@
         </div>
 
         <script>
-          const tg = window.Telegram.WebApp;
-          tg.expand();
-          tg.ready();
+            const tg = window.Telegram.WebApp;
+            tg.expand();
+            tg.ready();
 
-          let currentUserId = tg.initDataUnsafe?.user?.id || "0";
-          let currentDay = "mon";
+            let currentUserId = tg.initDataUnsafe?.user?.id || "0";
+            let currentDay = "mon";
 
-          if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-              document.getElementById("userName").textContent = tg.initDataUnsafe.user.first_name;
-          }
+            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                document.getElementById("userName").textContent =
+                    tg.initDataUnsafe.user.first_name;
+            }
 
-          const subjectDetails = {};
+            const subjectDetails = {};
 
-          // --- 1. ПЕРЕВІРКА СТАТУСУ (Технічні роботи та Банер) ---
-          async function checkAppStatus() {
-              try {
-                  const res = await fetch('/api/app-status');
-                  const config = await res.json();
+            // --- 1. ПЕРЕВІРКА СТАТУСУ (Технічні роботи та Банер) ---
+            async function checkAppStatus() {
+                try {
+                    const res = await fetch("/api/app-status");
+                    const config = await res.json();
 
-                  if (config.maintenance) {
-                      document.body.innerHTML = `
+                    if (config.maintenance) {
+                        document.body.innerHTML = `
                           <div class="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gray-900 text-white">
                               <span class="text-7xl mb-6">🛠</span>
                               <h1 class="text-3xl font-black mb-3 text-blue-400">Технічні роботи</h1>
                               <p class="opacity-70 text-lg">Бот зараз на оновленні.<br>Ми додаємо нові круті фічі! Повернемося зовсім скоро 🚀</p>
                           </div>
                           `;
-                      return false;
-                  }
+                        return false;
+                    }
 
-                  if (config.banner && config.banner.trim() !== "") {
-                      const bannerEl = document.getElementById('globalBanner');
-                      if(bannerEl) {
-                          bannerEl.innerText = config.banner;
-                          bannerEl.classList.remove('hidden');
-                      }
-                  }
-                  return true;
-              } catch (e) {
-                  console.log("Помилка статусу, продовжуємо завантаження", e);
-                  return true;
-              }
-          }
+                    if (config.banner && config.banner.trim() !== "") {
+                        const bannerEl =
+                            document.getElementById("globalBanner");
+                        if (bannerEl) {
+                            bannerEl.innerText = config.banner;
+                            bannerEl.classList.remove("hidden");
+                        }
+                    }
+                    return true;
+                } catch (e) {
+                    console.log("Помилка статусу, продовжуємо завантаження", e);
+                    return true;
+                }
+            }
 
-          // --- 2. АВТОМАТИЧНЕ ЗАВАНТАЖЕННЯ ГРУП ---
-          async function fetchGroups() {
-              try {
-                  const res = await fetch('/api/groups');
-                  const data = await res.json();
+            // --- 2. АВТОМАТИЧНЕ ЗАВАНТАЖЕННЯ ГРУП ---
+            async function fetchGroups() {
+                try {
+                    const res = await fetch("/api/groups");
+                    const data = await res.json();
 
-                  const select = document.getElementById('groupSelect');
-                  const currentGroup = document.getElementById('groupName').textContent;
+                    const select = document.getElementById("groupSelect");
+                    const currentGroup =
+                        document.getElementById("groupName").textContent;
 
-                  select.innerHTML = data.groups.map(group => `<option value="${group}">${group}</option>`).join('');
+                    select.innerHTML = data.groups
+                        .map(
+                            (group) =>
+                                `<option value="${group}">${group}</option>`,
+                        )
+                        .join("");
 
-                  if (data.groups.includes(currentGroup)) {
-                      select.value = currentGroup;
-                  }
-              } catch (error) {
-                  console.error("Помилка завантаження груп:", error);
-              }
-          }
+                    if (data.groups.includes(currentGroup)) {
+                        select.value = currentGroup;
+                    }
+                } catch (error) {
+                    console.error("Помилка завантаження груп:", error);
+                }
+            }
 
-          // --- 3. ЗАВАНТАЖЕННЯ РОЗКЛАДУ (З ОФЛАЙН КЕШЕМ LOCALSTORAGE) ---
-          async function loadSchedule(dayKey) {
-              currentDay = dayKey;
-              const container = document.getElementById("scheduleContainer");
+            // --- 3. ЗАВАНТАЖЕННЯ РОЗКЛАДУ (З ОФЛАЙН КЕШЕМ LOCALSTORAGE) ---
+            async function loadSchedule(dayKey) {
+                currentDay = dayKey;
+                const container = document.getElementById("scheduleContainer");
 
-              document.querySelectorAll(".day-btn").forEach((btn) => {
-                  btn.classList.remove("tg-btn", "font-bold", "shadow-md");
-                  btn.classList.add("tg-card", "font-medium", "opacity-80");
-              });
-              document.getElementById("btn_" + dayKey).classList.add("tg-btn", "font-bold", "shadow-md");
-              document.getElementById("btn_" + dayKey).classList.remove("tg-card", "font-medium", "opacity-80");
+                document.querySelectorAll(".day-btn").forEach((btn) => {
+                    btn.classList.remove("tg-btn", "font-bold", "shadow-md");
+                    btn.classList.add("tg-card", "font-medium", "opacity-80");
+                });
+                document
+                    .getElementById("btn_" + dayKey)
+                    .classList.add("tg-btn", "font-bold", "shadow-md");
+                document
+                    .getElementById("btn_" + dayKey)
+                    .classList.remove("tg-card", "font-medium", "opacity-80");
 
-              container.innerHTML = `<div class="tg-card p-4 rounded-2xl opacity-50 pulse text-center font-bold">Оновлюю дані...</div>`;
+                container.innerHTML = `<div class="tg-card p-4 rounded-2xl opacity-50 pulse text-center font-bold">Оновлюю дані...</div>`;
 
-              try {
-                  const response = await fetch(`/api/get-schedule?userId=${currentUserId}&day=${dayKey}`);
-                  if (!response.ok) throw new Error("Offline");
+                try {
+                    const response = await fetch(
+                        `/api/get-schedule?userId=${currentUserId}&day=${dayKey}`,
+                    );
+                    if (!response.ok) throw new Error("Offline");
 
-                  const data = await response.json();
+                    const data = await response.json();
 
-                  if (data.error) {
-                      container.innerHTML = `<div class="tg-card p-4 rounded-2xl text-red-500 font-bold text-center">❌ ${data.error}</div>`;
-                      return;
-                  }
+                    if (data.error) {
+                        container.innerHTML = `<div class="tg-card p-4 rounded-2xl text-red-500 font-bold text-center">❌ ${data.error}</div>`;
+                        return;
+                    }
 
-                  // Зберігаємо в пам'ять телефону
-                  localStorage.setItem(`saved_schedule_${currentUserId}_${dayKey}`, JSON.stringify(data));
-                  renderSchedule(data, false);
+                    // Зберігаємо в пам'ять телефону
+                    localStorage.setItem(
+                        `saved_schedule_${currentUserId}_${dayKey}`,
+                        JSON.stringify(data),
+                    );
+                    renderSchedule(data, false);
+                } catch (err) {
+                    // Якщо немає інтернету - дістаємо з пам'яті телефону
+                    const cachedData = localStorage.getItem(
+                        `saved_schedule_${currentUserId}_${dayKey}`,
+                    );
+                    if (cachedData) {
+                        renderSchedule(JSON.parse(cachedData), true);
+                    } else {
+                        container.innerHTML = `<div class="tg-card p-4 rounded-2xl text-center opacity-70">❌ Немає інтернету і збереженого розкладу.</div>`;
+                    }
+                }
+            }
 
-              } catch (err) {
-                  // Якщо немає інтернету - дістаємо з пам'яті телефону
-                  const cachedData = localStorage.getItem(`saved_schedule_${currentUserId}_${dayKey}`);
-                  if (cachedData) {
-                      renderSchedule(JSON.parse(cachedData), true);
-                  } else {
-                      container.innerHTML = `<div class="tg-card p-4 rounded-2xl text-center opacity-70">❌ Немає інтернету і збереженого розкладу.</div>`;
-                  }
-              }
-          }
+            // --- 4. ВІДМАЛЬОВКА КАРТОК РОЗКЛАДУ ---
+            function renderSchedule(data, isOffline) {
+                const container = document.getElementById("scheduleContainer");
+                document.getElementById("groupName").textContent =
+                    data.group || "Не обрано";
 
-          // --- 4. ВІДМАЛЬОВКА КАРТОК РОЗКЛАДУ ---
-          function renderSchedule(data, isOffline) {
-              const container = document.getElementById('scheduleContainer');
-              document.getElementById('groupName').textContent = data.group || "Не обрано";
+                const offlineBadge = isOffline
+                    ? `<span class="text-orange-500 font-black text-[10px] uppercase tracking-wider px-2 py-0.5 bg-orange-500/20 rounded-md ml-2">⚡ Офлайн</span>`
+                    : "";
+                document.getElementById("dateHeader").innerHTML =
+                    `Розклад на ${data.date} ${offlineBadge}`;
 
-              const offlineBadge = isOffline ? `<span class="text-orange-500 font-black text-[10px] uppercase tracking-wider px-2 py-0.5 bg-orange-500/20 rounded-md ml-2">⚡ Офлайн</span>` : "";
-              document.getElementById('dateHeader').innerHTML = `Розклад на ${data.date} ${offlineBadge}`;
+                if (!data.schedule || data.schedule.length === 0) {
+                    container.innerHTML = `<div class="tg-card p-4 rounded-2xl text-center opacity-70">🎉 Пар немає!</div>`;
+                    return;
+                }
 
-              if (!data.schedule || data.schedule.length === 0) {
-                  container.innerHTML = `<div class="tg-card p-4 rounded-2xl text-center opacity-70">🎉 Пар немає!</div>`;
-                  return;
-              }
-
-              container.innerHTML = data.schedule.map((pair, index) => {
-                  if (pair.name === "Немає" || pair.name === "Вікно") {
-                      return `
+                container.innerHTML = data.schedule
+                    .map((pair, index) => {
+                        if (pair.name === "Немає" || pair.name === "Вікно") {
+                            return `
                       <div id="pairCard_${pair.pair}" class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 opacity-40">
                           <div class="flex justify-between items-center mb-2">
                               <span class="text-xs font-bold px-2 py-0.5 bg-gray-500/20 rounded-md">Пара ${pair.pair}</span>
@@ -305,12 +340,14 @@
                           </div>
                           <h3 class="font-bold text-lg">🪟 Немає</h3>
                       </div>`;
-                  }
+                        }
 
-                  const extraInfo = subjectDetails[pair.name] || "💡 Додаткової інформації про предмет поки немає.";
-                  const safeName = pair.name.replace(/'/g, "\\'");
+                        const extraInfo =
+                            subjectDetails[pair.name] ||
+                            "💡 Додаткової інформації про предмет поки немає.";
+                        const safeName = pair.name.replace(/'/g, "\\'");
 
-                  return `
+                        return `
                       <div id="pairCard_${pair.pair}" class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 border-l-4 border-l-blue-500 transform origin-top transition-all duration-300" onclick="toggleCard(this, '${safeName}', ${index})">
                           <div class="flex justify-between items-center mb-2">
                               <div class="flex items-center gap-2">
@@ -336,134 +373,204 @@
                               </div>
                           </div>
                       </div>`;
-              }).join('');
+                    })
+                    .join("");
 
-              highlightCurrentClass(currentDay);
-          }
+                highlightCurrentClass(currentDay);
+            }
 
-          // --- 5. ДОПОМІЖНІ ФУНКЦІЇ (Нотатки, Модалки, Час) ---
-          async function toggleCard(cardElement, subjectName, index) {
-              const extraInfo = cardElement.querySelector(".extra-info");
-              const chevron = cardElement.querySelector(".chevron");
-              const textarea = document.getElementById("noteInput_" + index);
+            // --- 5. ДОПОМІЖНІ ФУНКЦІЇ (Нотатки, Модалки, Час) ---
+            async function toggleCard(cardElement, subjectName, index) {
+                const extraInfo = cardElement.querySelector(".extra-info");
+                const chevron = cardElement.querySelector(".chevron");
+                const textarea = document.getElementById("noteInput_" + index);
 
-              if (extraInfo.classList.contains("hidden")) {
-                  extraInfo.classList.remove("hidden");
-                  cardElement.classList.add("scale-[1.02]", "shadow-lg", "my-2");
-                  chevron.style.transform = "rotate(180deg)";
+                if (extraInfo.classList.contains("hidden")) {
+                    extraInfo.classList.remove("hidden");
+                    cardElement.classList.add(
+                        "scale-[1.02]",
+                        "shadow-lg",
+                        "my-2",
+                    );
+                    chevron.style.transform = "rotate(180deg)";
 
-                  if (textarea.getAttribute("data-loaded") !== "true") {
-                      textarea.value = "⏳ Завантаження...";
-                      try {
-                          const res = await fetch(`/api/notes?userId=${currentUserId}&subject=${encodeURIComponent(subjectName)}`);
-                          const data = await res.json();
-                          textarea.value = data.note || "";
-                          textarea.setAttribute("data-loaded", "true");
-                      } catch (e) { textarea.value = ""; }
-                  }
-              } else {
-                  extraInfo.classList.add("hidden");
-                  cardElement.classList.remove("scale-[1.02]", "shadow-lg", "my-2");
-                  chevron.style.transform = "rotate(0deg)";
-              }
-          }
+                    if (textarea.getAttribute("data-loaded") !== "true") {
+                        textarea.value = "⏳ Завантаження...";
+                        try {
+                            const res = await fetch(
+                                `/api/notes?userId=${currentUserId}&subject=${encodeURIComponent(subjectName)}`,
+                            );
+                            const data = await res.json();
+                            textarea.value = data.note || "";
+                            textarea.setAttribute("data-loaded", "true");
+                        } catch (e) {
+                            textarea.value = "";
+                        }
+                    }
+                } else {
+                    extraInfo.classList.add("hidden");
+                    cardElement.classList.remove(
+                        "scale-[1.02]",
+                        "shadow-lg",
+                        "my-2",
+                    );
+                    chevron.style.transform = "rotate(0deg)";
+                }
+            }
 
-          async function saveUserNote(event, subjectName, index) {
-              event.stopPropagation();
-              const noteText = document.getElementById("noteInput_" + index).value;
-              const btn = document.getElementById("saveBtn_" + index);
-              btn.innerText = "⏳ Збереження...";
-              try {
-                  await fetch("/api/notes", {
-                      method: "POST", headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ userId: currentUserId, subject: subjectName, note: noteText }),
-                  });
-                  btn.innerText = "✅ Збережено";
-                  setTimeout(() => (btn.innerText = "Зберегти нотатку"), 2000);
-              } catch (e) { btn.innerText = "❌ Помилка"; }
-          }
+            async function saveUserNote(event, subjectName, index) {
+                event.stopPropagation();
+                const noteText = document.getElementById(
+                    "noteInput_" + index,
+                ).value;
+                const btn = document.getElementById("saveBtn_" + index);
+                btn.innerText = "⏳ Збереження...";
+                try {
+                    await fetch("/api/notes", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            userId: currentUserId,
+                            subject: subjectName,
+                            note: noteText,
+                        }),
+                    });
+                    btn.innerText = "✅ Збережено";
+                    setTimeout(
+                        () => (btn.innerText = "Зберегти нотатку"),
+                        2000,
+                    );
+                } catch (e) {
+                    btn.innerText = "❌ Помилка";
+                }
+            }
 
-          function openGroupModal() {
-              const overlay = document.getElementById("groupModalOverlay");
-              const content = document.getElementById("groupModalContent");
-              const select = document.getElementById("groupSelect");
-              const currentGroup = document.getElementById("groupName").textContent;
-              if (Array.from(select.options).some((opt) => opt.value === currentGroup)) { select.value = currentGroup; }
-              overlay.classList.remove("hidden");
-              setTimeout(() => { overlay.classList.remove("opacity-0"); content.classList.remove("scale-95"); }, 10);
-          }
+            function openGroupModal() {
+                const overlay = document.getElementById("groupModalOverlay");
+                const content = document.getElementById("groupModalContent");
+                const select = document.getElementById("groupSelect");
+                const currentGroup =
+                    document.getElementById("groupName").textContent;
+                if (
+                    Array.from(select.options).some(
+                        (opt) => opt.value === currentGroup,
+                    )
+                ) {
+                    select.value = currentGroup;
+                }
+                overlay.classList.remove("hidden");
+                setTimeout(() => {
+                    overlay.classList.remove("opacity-0");
+                    content.classList.remove("scale-95");
+                }, 10);
+            }
 
-          function closeGroupModal() {
-              const overlay = document.getElementById("groupModalOverlay");
-              const content = document.getElementById("groupModalContent");
-              overlay.classList.add("opacity-0"); content.classList.add("scale-95");
-              setTimeout(() => overlay.classList.add("hidden"), 300);
-          }
+            function closeGroupModal() {
+                const overlay = document.getElementById("groupModalOverlay");
+                const content = document.getElementById("groupModalContent");
+                overlay.classList.add("opacity-0");
+                content.classList.add("scale-95");
+                setTimeout(() => overlay.classList.add("hidden"), 300);
+            }
 
-          async function saveGroupFromModal() {
-              const newGroup = document.getElementById("groupSelect").value;
-              const btn = document.getElementById("saveGroupBtn");
-              btn.innerText = "⏳..."; btn.disabled = true;
-              try {
-                  document.getElementById("groupName").textContent = "Оновлення...";
-                  await fetch("/api/save-group", {
-                      method: "POST", headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ userId: currentUserId, group: newGroup }),
-                  });
-                  closeGroupModal();
-                  loadSchedule(currentDay);
-              } catch (e) { alert("Помилка збереження!"); }
-              finally { btn.innerText = "Зберегти"; btn.disabled = false; }
-          }
+            async function saveGroupFromModal() {
+                const newGroup = document.getElementById("groupSelect").value;
+                const btn = document.getElementById("saveGroupBtn");
+                btn.innerText = "⏳...";
+                btn.disabled = true;
+                try {
+                    document.getElementById("groupName").textContent =
+                        "Оновлення...";
+                    await fetch("/api/save-group", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            userId: currentUserId,
+                            group: newGroup,
+                        }),
+                    });
+                    closeGroupModal();
+                    loadSchedule(currentDay);
+                } catch (e) {
+                    alert("Помилка збереження!");
+                } finally {
+                    btn.innerText = "Зберегти";
+                    btn.disabled = false;
+                }
+            }
 
-          function highlightCurrentClass(selectedDayKey) {
-              try {
-                  const now = new Date();
-                  const formatterDay = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Kyiv", weekday: "short" });
-                  const todayStr = formatterDay.format(now).toLowerCase();
-                  if (selectedDayKey !== todayStr) return;
+            function highlightCurrentClass(selectedDayKey) {
+                try {
+                    const now = new Date();
+                    const formatterDay = new Intl.DateTimeFormat("en-US", {
+                        timeZone: "Europe/Kyiv",
+                        weekday: "short",
+                    });
+                    const todayStr = formatterDay.format(now).toLowerCase();
+                    if (selectedDayKey !== todayStr) return;
 
-                  const formatterTime = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Kyiv", hour: "2-digit", minute: "2-digit" });
-                  const timeStr = formatterTime.format(now);
-                  const parts = timeStr.split(":");
-                  let currentHours = parseInt(parts[0], 10);
-                  if (currentHours === 24) currentHours = 0;
-                  const currentMinutes = currentHours * 60 + parseInt(parts[1], 10);
+                    const formatterTime = new Intl.DateTimeFormat("en-GB", {
+                        timeZone: "Europe/Kyiv",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                    });
+                    const timeStr = formatterTime.format(now);
+                    const parts = timeStr.split(":");
+                    let currentHours = parseInt(parts[0], 10);
+                    if (currentHours === 24) currentHours = 0;
+                    const currentMinutes =
+                        currentHours * 60 + parseInt(parts[1], 10);
 
-                  const scheduleTimes = [
-                      { num: 1, start: 8 * 60 + 30, end: 9 * 60 + 50 },
-                      { num: 2, start: 10 * 60 + 5, end: 11 * 60 + 25 },
-                      { num: 3, start: 11 * 60 + 55, end: 13 * 60 + 15 },
-                      { num: 4, start: 13 * 60 + 30, end: 14 * 60 + 50 },
-                      { num: 5, start: 15 * 60 + 5, end: 16 * 60 + 25 },
-                      { num: 6, start: 16 * 60 + 40, end: 18 * 60 + 0 },
-                  ];
+                    const scheduleTimes = [
+                        { num: 1, start: 8 * 60 + 30, end: 9 * 60 + 50 },
+                        { num: 2, start: 10 * 60 + 5, end: 11 * 60 + 25 },
+                        { num: 3, start: 11 * 60 + 55, end: 13 * 60 + 15 },
+                        { num: 4, start: 13 * 60 + 30, end: 14 * 60 + 50 },
+                        { num: 5, start: 15 * 60 + 5, end: 16 * 60 + 25 },
+                        { num: 6, start: 16 * 60 + 40, end: 18 * 60 + 0 },
+                    ];
 
-                  for (let slot of scheduleTimes) {
-                      if (currentMinutes >= slot.start && currentMinutes <= slot.end) {
-                          const activeCard = document.getElementById("pairCard_" + slot.num);
-                          const activeBadge = document.getElementById("badge_" + slot.num);
-                          if (activeCard && activeBadge) {
-                              activeCard.classList.remove("border-gray-500/10", "border-l-blue-500");
-                              activeCard.classList.add("border-green-500", "bg-green-500/5", "shadow-green-500/20");
-                              activeBadge.innerHTML = `<span class="px-2 py-0.5 bg-green-500 text-white font-black text-[10px] uppercase tracking-wider rounded-md animate-pulse shadow-md shadow-green-500/40">🔥 Йде зараз</span>`;
-                          }
-                          break;
-                      }
-                  }
-              } catch (e) { console.log("Помилка підсвітки часу:", e); }
-          }
+                    for (let slot of scheduleTimes) {
+                        if (
+                            currentMinutes >= slot.start &&
+                            currentMinutes <= slot.end
+                        ) {
+                            const activeCard = document.getElementById(
+                                "pairCard_" + slot.num,
+                            );
+                            const activeBadge = document.getElementById(
+                                "badge_" + slot.num,
+                            );
+                            if (activeCard && activeBadge) {
+                                activeCard.classList.remove(
+                                    "border-gray-500/10",
+                                    "border-l-blue-500",
+                                );
+                                activeCard.classList.add(
+                                    "border-green-500",
+                                    "bg-green-500/5",
+                                    "shadow-green-500/20",
+                                );
+                                activeBadge.innerHTML = `<span class="px-2 py-0.5 bg-green-500 text-white font-black text-[10px] uppercase tracking-wider rounded-md animate-pulse shadow-md shadow-green-500/40">🔥 Йде зараз</span>`;
+                            }
+                            break;
+                        }
+                    }
+                } catch (e) {
+                    console.log("Помилка підсвітки часу:", e);
+                }
+            }
 
-          // --- 6. ГОЛОВНИЙ ЗАПУСК ДОДАТКУ ---
-          async function initApp() {
-              const isOnline = await checkAppStatus();
-              if (isOnline) {
-                  fetchGroups();
-                  loadSchedule("mon");
-              }
-          }
+            // --- 6. ГОЛОВНИЙ ЗАПУСК ДОДАТКУ ---
+            async function initApp() {
+                const isOnline = await checkAppStatus();
+                if (isOnline) {
+                    fetchGroups();
+                    loadSchedule("mon");
+                }
+            }
 
-          initApp();
+            initApp();
         </script>
     </body>
 </html>
