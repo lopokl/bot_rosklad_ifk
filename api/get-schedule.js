@@ -203,16 +203,13 @@ module.exports = async (req, res) => {
 
       if (lesson === "-") lesson = "";
       else if (lesson === "") {
-        // Якщо наша клітинка пуста — ПЕРШОЧЕРГОВО перевіряємо збіг аудиторій з будь-яким сусідом ліворуч.
-        // Якщо знайдемо співпадіння аудиторій — це спільна лекція. Якщо ні — fallback до старої логіки (перший непорожній сусід).
+        // Якщо наша клітинка пуста — перевіряємо ТІЛЬКИ збіг аудиторій з сусідами ліворуч.
         const pairIndex = parseInt(pairNum, 10);
         const ourAudNormalized =
           !isNaN(pairIndex) && audGroupRow && audGroupRow[pairIndex]
             ? normalizeAud(audGroupRow[pairIndex])
             : "";
 
-        let foundAudMatch = false;
-        // Спочатку шукаємо аудиторію, що співпадає
         for (let k = groupCol - 1; k >= 1; k--) {
           const leftCell = columns[k]
             ? columns[k].replace(/"/g, "").trim()
@@ -235,6 +232,8 @@ module.exports = async (req, res) => {
               const leftAudienceNormalized = normalizeAud(
                 leftGroupAudRow[pairIndex],
               );
+
+              // Бінго! Аудиторії збігаються — крадемо пару і ставимо "Лекція"
               if (
                 ourAudNormalized !== "" &&
                 leftAudienceNormalized !== "" &&
@@ -242,40 +241,17 @@ module.exports = async (req, res) => {
               ) {
                 lesson = leftCell;
                 lessonType = "📢 Лекція";
-                foundAudMatch = true;
                 break;
               }
             }
           }
         }
-
-        // Якщо не знайдено співпадіння аудиторій — fallback до старої логіки (беремо перший непорожній предмет ліворуч)
-        if (!foundAudMatch) {
-          for (let k = groupCol - 1; k >= 1; k--) {
-            const leftCell = columns[k]
-              ? columns[k].replace(/"/g, "").trim()
-              : "";
-            if (
-              leftCell !== "" &&
-              leftCell !== "-" &&
-              !ignoredSubjects.some((w) => leftCell.includes(w))
-            ) {
-              lesson = leftCell;
-              lessonType = "📢 Лекція";
-              break;
-            }
-          }
-        }
+        // ❌ Старий фолбек повністю видалено! Немає збігу аудиторії = пара залишається порожньою (Вікно).
       } else {
-        // У нашій групі є предмет — перевіряємо пріоритетно по аудиторіям з правою (наступною) активною групою,
-        // якщо нема співпадіння по аудиторіям — fallback до старої перевірки (права клітинка пуста => лекція)
+        // У нашій групі є предмет — перевіряємо аудиторію з правою групою, щоб визначити тип пари (Лекція чи Практика)
         const ourIndex = activeGroups.indexOf(groupCol);
         if (ourIndex !== -1 && ourIndex < activeGroups.length - 1) {
           const nextCol = activeGroups[ourIndex + 1];
-          const nextCell = columns[nextCol]
-            ? columns[nextCol].replace(/"/g, "").trim()
-            : "";
-
           const pairIndex = parseInt(pairNum, 10);
           const nextGroupName = normalizeGroup(
             headers[nextCol].replace(/"/g, "").trim(),
@@ -291,21 +267,15 @@ module.exports = async (req, res) => {
               ? normalizeAud(nextGroupAudRow[pairIndex])
               : "";
 
-          // Першочергова перевірка по аудиторіям
+          // Якщо аудиторії співпадають з сусідом праворуч — це точно спільна лекція
           if (
             ourAudNormalized !== "" &&
             nextAudNormalized !== "" &&
             ourAudNormalized === nextAudNormalized
           ) {
             lessonType = "📢 Лекція";
-          } else {
-            // Фолбек: якщо права клітинка порожня і предмет не в ignored — вважати лекцією (як раніше)
-            if (
-              nextCell === "" &&
-              !ignoredSubjects.some((w) => lesson.includes(w))
-            )
-              lessonType = "📢 Лекція";
           }
+          // ❌ Старий фолбек з перевіркою порожньої клітинки праворуч також видалено для 100% точності.
         }
       }
 
