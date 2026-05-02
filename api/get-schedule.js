@@ -147,17 +147,16 @@ module.exports = async (req, res) => {
       return res.json({ group: userGroup, date: targetDate, schedule: [] }); // Порожній розклад
     }
 
-    let audGroupRow = null;
+    // Завантажуємо аудиторії всіх груп (для перевірки спільних лекцій)
+    const audByGroup = {};
     for (let i = 0; i < audRows.length; i++) {
       const columns = audRows[i].split(",");
-      if (
-        columns[0] &&
-        normalizeGroup(columns[0].replace(/"/g, "")) === userGroup
-      ) {
-        audGroupRow = columns;
-        break;
+      if (columns[0]) {
+        const groupName = normalizeGroup(columns[0].replace(/"/g, ""));
+        audByGroup[groupName] = columns;
       }
     }
+    const audGroupRow = audByGroup[userGroup] || null;
 
     const headers = subjRows[startRow - 1].split(",");
     const activeGroups = [];
@@ -198,6 +197,7 @@ module.exports = async (req, res) => {
 
       if (lesson === "-") lesson = "";
       else if (lesson === "") {
+        // Перевіряємо аудиторії сусідніх груп, щоб дійсно то спільна лекція
         for (let k = groupCol - 1; k >= 1; k--) {
           const leftCell = columns[k]
             ? columns[k].replace(/"/g, "").trim()
@@ -207,9 +207,27 @@ module.exports = async (req, res) => {
             leftCell !== "-" &&
             !ignoredSubjects.some((w) => leftCell.includes(w))
           ) {
-            lesson = leftCell;
-            lessonType = "📢 Лекція";
-            break;
+            // Нашли потенційну спільну лекцію, але перевіримо аудиторію!
+            // Знаходимо групу цієї колонки з заголовків
+            const leftGroupName = normalizeGroup(
+              headers[k].replace(/"/g, "").trim()
+            );
+            const leftGroupAudRow = audByGroup[leftGroupName];
+            
+            if (leftGroupAudRow) {
+              const pairIndex = parseInt(columns[0].replace(/"/g, "").trim(), 10);
+              if (!isNaN(pairIndex) && leftGroupAudRow[pairIndex]) {
+                const leftAudience = leftGroupAudRow[pairIndex]
+                  .replace(/"/g, "")
+                  .trim();
+                // Якщо в сусідньої групи ЄСть аудиторія — це справжня спільна лекція!
+                if (leftAudience !== "" && leftAudience !== "-") {
+                  lesson = leftCell;
+                  lessonType = "📢 Лекція";
+                  break;
+                }
+              }
+            }
           }
         }
       } else {
