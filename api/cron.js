@@ -28,7 +28,6 @@ module.exports = async (req, res) => {
       3: "wed",
       4: "thu",
       5: "fri",
-      6: "sat",
     };
     const dayKey = daysMap[dayOfWeek];
 
