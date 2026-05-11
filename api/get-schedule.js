@@ -68,7 +68,11 @@ module.exports = async (req, res) => {
       const time = new Date().toLocaleTimeString("uk-UA", {
         timeZone: "Europe/Kyiv",
       });
-      await kv.lpush("recent_logs", `[${time}] ID: ${userId} відкрив розклад`);
+      // Дістаємо імена з запиту
+      const userName = req.query.name || "Студент";
+      const tgUser = req.query.username ? `(@${req.query.username})` : "";
+        
+      await kv.lpush("recent_logs", `[${time}] ${userName} ${tgUser} | ID: ${userId}`);
       await kv.ltrim("recent_logs", 0, 29); // Зберігаємо тільки останні 20 записів
     }
     const dayKey = req.query.day || "mon";
