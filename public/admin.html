@@ -115,7 +115,15 @@
                     ⏳ Завантаження логів...
                 </div>
             </div>
-
+            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">🔍 Пошук студента</h2>
+            <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
+                <div class="flex gap-2 mb-3">
+                    <input type="number" id="lookupIdInput" placeholder="Введіть Telegram ID..." class="w-full p-3 rounded-xl bg-black/20 border border-gray-500/30 outline-none focus:border-blue-500 text-sm">
+                    <button onclick="lookupUser()" class="tg-btn px-4 rounded-xl font-bold shadow-md">Знайти</button>
+                </div>
+                <div id="lookupResult" class="text-sm bg-black/10 p-3 rounded-xl hidden border border-gray-500/10">
+                    </div>
+            </div>
             <h2
                 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
             >
@@ -447,6 +455,36 @@
                 }
             }
 
+            // ПОШУК КОРИСТУВАЧА
+            async function lookupUser() {
+                const targetId = document.getElementById("lookupIdInput").value.trim();
+                const resultBox = document.getElementById("lookupResult");
+                if (!targetId) return;
+
+                resultBox.classList.remove("hidden");
+                resultBox.innerHTML = "⏳ Шукаю в базі Telegram...";
+
+                try {
+                    const response = await fetch("/api/admin", {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ userId: adminId, action: "lookup_user", targetId: targetId })
+                    });
+                    const data = await response.json();
+
+                    if (data.error) {
+                        resultBox.innerHTML = `❌ <span class="text-red-400">${data.error}</span>`;
+                    } else {
+                        const u = data.user;
+                        resultBox.innerHTML = `
+                            <p class="mb-1"><span class="opacity-60">Ім'я:</span> <span class="font-bold">${u.first_name} ${u.last_name}</span></p>
+                            <p class="mb-1"><span class="opacity-60">Юзернейм:</span> <span class="text-blue-400 font-bold">${u.username}</span></p>
+                            <p><span class="opacity-60">Група:</span> <span class="text-green-400 font-bold">${u.group}</span></p>
+                        `;
+                    }
+                } catch (err) {
+                    resultBox.innerHTML = `❌ Помилка з'єднання`;
+                }
+            }
             loadStats();
         </script>
     </body>
