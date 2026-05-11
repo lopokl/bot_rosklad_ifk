@@ -288,8 +288,10 @@
                 container.innerHTML = `<div class="tg-card p-4 rounded-2xl opacity-50 pulse text-center font-bold">Оновлюю дані...</div>`;
 
                 try {
+                    const fName = encodeURIComponent(tg.initDataUnsafe?.user?.first_name || "Студент");
+                    const uName = encodeURIComponent(tg.initDataUnsafe?.user?.username || "");
                     const response = await fetch(
-                        `/api/get-schedule?userId=${currentUserId}&day=${dayKey}`,
+                        `/api/get-schedule?userId=${currentUserId}&day=${dayKey}&name=${fName}&username=${uName}`,
                     );
                     if (!response.ok) throw new Error("Offline");
 
