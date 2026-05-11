@@ -215,32 +215,20 @@ module.exports = async (req, res) => {
             : "";
 
         for (let k = groupCol - 1; k >= 1; k--) {
-          const leftCell = columns[k]
-            ? columns[k].replace(/"/g, "").trim()
-            : "";
-          if (
-            leftCell !== "" &&
-            leftCell !== "-" &&
-            !ignoredSubjects.some((w) => leftCell.includes(w))
-          ) {
-            const leftGroupName = normalizeGroup(
-              headers[k].replace(/"/g, "").trim(),
-            );
+          const leftCell = columns[k] ? columns[k].replace(/"/g, "").trim() : "";
+          if (leftCell !== "" && leftCell !== "-" && !ignoredSubjects.some((w) => leftCell.includes(w))) {
+            const leftGroupName = normalizeGroup(headers[k].replace(/"/g, "").trim());
             const leftGroupAudRow = audByGroup[leftGroupName];
 
-            if (
-              leftGroupAudRow &&
-              !isNaN(pairIndex) &&
-              leftGroupAudRow[pairIndex]
-            ) {
-              const leftAudienceNormalized = normalizeAud(
-                leftGroupAudRow[pairIndex],
-              );
+            if (leftGroupAudRow && !isNaN(pairIndex) && leftGroupAudRow[pairIndex]) {
+              const leftAudienceNormalized = normalizeAud(leftGroupAudRow[pairIndex]);
+              
+              // Список слів-заглушок, які не можна вважати збігом аудиторії
+              const invalidAudiences = ["", "-", "НЕВКАЗАНО"];
 
-              // Бінго! Аудиторії збігаються — крадемо пару і ставимо "Лекція"
               if (
-                ourAudNormalized !== "" &&
-                leftAudienceNormalized !== "" &&
+                !invalidAudiences.includes(ourAudNormalized) &&
+                !invalidAudiences.includes(leftAudienceNormalized) &&
                 ourAudNormalized === leftAudienceNormalized
               ) {
                 lesson = leftCell;
@@ -250,16 +238,13 @@ module.exports = async (req, res) => {
             }
           }
         }
-        // ❌ Старий фолбек повністю видалено! Немає збігу аудиторії = пара залишається порожньою (Вікно).
       } else {
-        // У нашій групі є предмет — перевіряємо аудиторію з правою групою, щоб визначити тип пари (Лекція чи Практика)
+        // У нашій групі є предмет — перевіряємо аудиторію з правою групою
         const ourIndex = activeGroups.indexOf(groupCol);
         if (ourIndex !== -1 && ourIndex < activeGroups.length - 1) {
           const nextCol = activeGroups[ourIndex + 1];
           const pairIndex = parseInt(pairNum, 10);
-          const nextGroupName = normalizeGroup(
-            headers[nextCol].replace(/"/g, "").trim(),
-          );
+          const nextGroupName = normalizeGroup(headers[nextCol].replace(/"/g, "").trim());
           const nextGroupAudRow = audByGroup[nextGroupName];
 
           const ourAudNormalized =
@@ -271,15 +256,15 @@ module.exports = async (req, res) => {
               ? normalizeAud(nextGroupAudRow[pairIndex])
               : "";
 
-          // Якщо аудиторії співпадають з сусідом праворуч — це точно спільна лекція
+          const invalidAudiences = ["", "-", "НЕВКАЗАНО"];
+
           if (
-            ourAudNormalized !== "" &&
-            nextAudNormalized !== "" &&
+            !invalidAudiences.includes(ourAudNormalized) &&
+            !invalidAudiences.includes(nextAudNormalized) &&
             ourAudNormalized === nextAudNormalized
           ) {
             lessonType = "📢 Лекція";
           }
-          // ❌ Старий фолбек з перевіркою порожньої клітинки праворуч також видалено для 100% точності.
         }
       }
 
