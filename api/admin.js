@@ -125,7 +125,30 @@ module.exports = async (req, res) => {
           message: "✅ Налаштування збережено!",
         });
       }
+      // ДІЯ: ПОШУК КОРИСТУВАЧА ЗА ID
+      if (action === "lookup_user") {
+        const { targetId } = req.body;
+        if (!targetId) return res.status(400).json({ error: "Введіть ID" });
 
+        try {
+          // Запитуємо в Telegram інформацію про людину
+          const chatInfo = await bot.telegram.getChat(targetId);
+          // Перевіряємо, в якій вона групі у нашій базі
+          const userGroup = await kv.get(`user_${targetId}`) || "Не обрано";
+          
+          return res.json({ 
+            success: true, 
+            user: {
+              first_name: chatInfo.first_name || "Невідомо",
+              last_name: chatInfo.last_name || "",
+              username: chatInfo.username ? `@${chatInfo.username}` : "Немає",
+              group: userGroup
+            } 
+          });
+        } catch (e) {
+          return res.status(404).json({ error: "Юзер не знайдений або ніколи не запускав бота!" });
+        }
+      }
       return res.status(400).json({ error: "Невідома дія" });
     }
   } catch (error) {
