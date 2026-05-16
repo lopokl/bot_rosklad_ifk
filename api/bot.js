@@ -322,7 +322,8 @@ async function sendSchedule(ctx, dayKey, dayName) {
           "Іноземна",
           "Фізична культура",
           "Англ",
-          "Виховна"
+          "Виховна",
+          "Навчальна"
         ];
 
         if (lesson === "-") {
