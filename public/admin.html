@@ -45,6 +45,12 @@
             .toggle-checkbox:checked + .toggle-label {
                 background-color: #ef4444;
             }
+            .toggle-checkbox-green:checked {
+                border-color: #22c55e;
+            }
+            .toggle-checkbox-green:checked + .toggle-label {
+                background-color: #22c55e;
+            }
         </style>
     </head>
     <body class="p-5 antialiased">
@@ -115,6 +121,7 @@
                     ⏳ Завантаження логів...
                 </div>
             </div>
+
             <h2
                 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
             >
@@ -140,6 +147,7 @@
                     class="text-sm bg-black/10 p-3 rounded-xl hidden border border-gray-500/10"
                 ></div>
             </div>
+
             <h2
                 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
             >
@@ -151,34 +159,9 @@
                 >
                     <div>
                         <p class="font-bold text-sm text-red-400">
-                            Технічні роботи
+                            Технічні роботи 🛠
                         </p>
                         <p class="text-xs opacity-60">Вимкнути розклад</p>
-                    </div>
-                    <div
-                        class="flex items-center justify-between mb-4 pb-4 border-b border-gray-500/20"
-                    >
-                        <div>
-                            <p class="font-bold text-sm text-green-400">
-                                Режим канікул 🌴
-                            </p>
-                            <p class="text-xs opacity-60">
-                                Увімкнути екран відпочинку
-                            </p>
-                        </div>
-                        <div
-                            class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in"
-                        >
-                            <input
-                                type="checkbox"
-                                id="vacationToggle"
-                                class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer z-10 transition-transform duration-200 ease-in-out"
-                            />
-                            <label
-                                for="vacationToggle"
-                                class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-500/50 cursor-pointer"
-                            ></label>
-                        </div>
                     </div>
                     <div
                         class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in"
@@ -190,6 +173,31 @@
                         />
                         <label
                             for="maintenanceToggle"
+                            class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-500/50 cursor-pointer"
+                        ></label>
+                    </div>
+                </div>
+                <div
+                    class="flex items-center justify-between mb-4 pb-4 border-b border-gray-500/20"
+                >
+                    <div>
+                        <p class="font-bold text-sm text-green-400">
+                            Режим канікул 🌴
+                        </p>
+                        <p class="text-xs opacity-60">
+                            Увімкнути екран відпочинку
+                        </p>
+                    </div>
+                    <div
+                        class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in"
+                    >
+                        <input
+                            type="checkbox"
+                            id="vacationToggle"
+                            class="toggle-checkbox toggle-checkbox-green absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer z-10 transition-transform duration-200 ease-in-out"
+                        />
+                        <label
+                            for="vacationToggle"
                             class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-500/50 cursor-pointer"
                         ></label>
                     </div>
@@ -293,7 +301,6 @@
                     document.getElementById("statNotif").innerText =
                         data.notifOnCount || 0;
 
-                    // Заповнюємо групи
                     const groupsBox = document.getElementById("statGroups");
                     groupsBox.classList.remove("pulse");
                     if (data.allGroups && data.allGroups.length > 0) {
@@ -311,23 +318,17 @@
                             "<p class='opacity-50'>Немає даних</p>";
                     }
 
-                    // Заповнюємо логи
                     const logsBox = document.getElementById("recentLogs");
                     if (data.recentLogs && data.recentLogs.length > 0) {
                         logsBox.innerHTML = data.recentLogs
                             .map((log) => {
-                                const formattedLog = log.replace(
-                                    /ID: (\d+)/,
-                                    'ID: <span class="text-blue-400">$1</span>',
-                                );
-                                return `<p>${formattedLog}</p>`;
+                                return `<p>${log.replace(/ID: (\d+)/, 'ID: <span class="text-blue-400">$1</span>')}</p>`;
                             })
                             .join("");
                     } else {
                         logsBox.innerHTML = "<p>Ще ніхто не заходив</p>";
                     }
 
-                    // Заповнюємо налаштування додатку
                     if (data.appConfig) {
                         document.getElementById("maintenanceToggle").checked =
                             data.appConfig.maintenance || false;
@@ -337,7 +338,6 @@
                             data.appConfig.banner || "";
                     }
 
-                    // Малюємо графік
                     const ctx = document
                         .getElementById("activityChart")
                         .getContext("2d");
@@ -380,15 +380,17 @@
                 }
             }
 
-            // ЗБЕРЕЖЕННЯ КОНФІГУ
             async function saveAppConfig() {
                 const btn = document.getElementById("saveConfigBtn");
                 if (!adminId) return;
                 const isMaintenance =
                     document.getElementById("maintenanceToggle").checked;
+                const isVacation =
+                    document.getElementById("vacationToggle").checked;
                 const bannerText = document
                     .getElementById("bannerInput")
                     .value.trim();
+
                 btn.disabled = true;
                 btn.innerText = "⏳ Збереження...";
                 btn.classList.add("opacity-50");
@@ -416,7 +418,9 @@
                             `<span class="text-green-500">${data.message}</span>`,
                         );
                 } catch (err) {
-                    showStatus(`<span class="text-red-500">❌ Помилка</span>`);
+                    showStatus(
+                        `<span class="text-red-500">❌ Помилка з'єднання</span>`,
+                    );
                 } finally {
                     btn.disabled = false;
                     btn.innerText = "💾 Зберегти налаштування";
@@ -424,7 +428,43 @@
                 }
             }
 
-            // ОЧИЩЕННЯ КЕШУ
+            async function lookupUser() {
+                const targetId = document
+                    .getElementById("lookupIdInput")
+                    .value.trim();
+                const resultBox = document.getElementById("lookupResult");
+                if (!targetId) return;
+
+                resultBox.classList.remove("hidden");
+                resultBox.innerHTML = "⏳ Шукаю...";
+
+                try {
+                    const response = await fetch("/api/admin", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            userId: adminId,
+                            action: "lookup_user",
+                            targetId: targetId,
+                        }),
+                    });
+                    const data = await response.json();
+
+                    if (data.error) {
+                        resultBox.innerHTML = `❌ <span class="text-red-400">${data.error}</span>`;
+                    } else {
+                        const u = data.user;
+                        resultBox.innerHTML = `
+                        <p class="mb-1"><span class="opacity-60">Ім'я:</span> <span class="font-bold">${u.first_name} ${u.last_name}</span></p>
+                        <p class="mb-1"><span class="opacity-60">Юзернейм:</span> <span class="text-blue-400 font-bold">${u.username}</span></p>
+                        <p><span class="opacity-60">Група:</span> <span class="text-green-400 font-bold">${u.group}</span></p>
+                    `;
+                    }
+                } catch (err) {
+                    resultBox.innerHTML = `❌ Помилка з'єднання`;
+                }
+            }
+
             async function clearCache() {
                 const btn = document.getElementById("cacheBtn");
                 if (!adminId) return;
@@ -458,7 +498,6 @@
                 }
             }
 
-            // РОЗСИЛКА
             async function sendBroadcast() {
                 const msg = document.getElementById("broadcastMsg").value;
                 const btn = document.getElementById("sendBtn");
@@ -499,43 +538,6 @@
                 }
             }
 
-            // ПОШУК КОРИСТУВАЧА
-            async function lookupUser() {
-                const targetId = document
-                    .getElementById("lookupIdInput")
-                    .value.trim();
-                const resultBox = document.getElementById("lookupResult");
-                if (!targetId) return;
-
-                resultBox.classList.remove("hidden");
-                resultBox.innerHTML = "⏳ Шукаю в базі Telegram...";
-
-                try {
-                    const response = await fetch("/api/admin", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            userId: adminId,
-                            action: "lookup_user",
-                            targetId: targetId,
-                        }),
-                    });
-                    const data = await response.json();
-
-                    if (data.error) {
-                        resultBox.innerHTML = `❌ <span class="text-red-400">${data.error}</span>`;
-                    } else {
-                        const u = data.user;
-                        resultBox.innerHTML = `
-                            <p class="mb-1"><span class="opacity-60">Ім'я:</span> <span class="font-bold">${u.first_name} ${u.last_name}</span></p>
-                            <p class="mb-1"><span class="opacity-60">Юзернейм:</span> <span class="text-blue-400 font-bold">${u.username}</span></p>
-                            <p><span class="opacity-60">Група:</span> <span class="text-green-400 font-bold">${u.group}</span></p>
-                        `;
-                    }
-                } catch (err) {
-                    resultBox.innerHTML = `❌ Помилка з'єднання`;
-                }
-            }
             loadStats();
         </script>
     </body>

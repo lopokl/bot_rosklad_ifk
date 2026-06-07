@@ -12,7 +12,7 @@ module.exports = async (req, res) => {
 
   try {
     // ==========================================
-    // 1. ВИДАЧА СТАТИСТИКИ ТА КОНФІГІВ (GET)
+    // 1. ВИДАЧА СТАТИСТИКИ (GET)
     // ==========================================
     if (req.method === "GET") {
       const userId = req.query.userId;
@@ -53,12 +53,11 @@ module.exports = async (req, res) => {
         chartData.push(visits);
       }
 
-      // Логи
+      // Логи та Конфіг
       const recentLogs = (await kv.lrange("recent_logs", 0, 29)) || [];
-
-      // Конфіг додатку (Тех. роботи і банер)
       const appConfig = (await kv.get("app_config")) || {
         maintenance: false,
+        vacation: false,
         banner: "",
       };
 
@@ -78,7 +77,7 @@ module.exports = async (req, res) => {
     // 2. ДІЇ АДМІНІСТРАТОРА (POST)
     // ==========================================
     if (req.method === "POST") {
-      const { userId, action, message, configData } = req.body;
+      const { userId, action, message, configData, targetId } = req.body;
       if (String(userId) !== process.env.ADMIN_ID)
         return res.status(403).json({ error: "Доступ заборонено" });
 
@@ -100,7 +99,7 @@ module.exports = async (req, res) => {
             });
             successCount++;
           } catch (e) {
-            /* ігноруємо */
+            /* ігноруємо помилки блокування */
           }
         }
         return res.json({
@@ -117,7 +116,7 @@ module.exports = async (req, res) => {
         return res.json({ success: true, message: `✅ Кеш успішно очищено!` });
       }
 
-      // ДІЯ: ОНОВЛЕННЯ КОНФІГУ ДОДАТКУ
+      // ДІЯ: ОНОВЛЕННЯ КОНФІГУ ДОДАТКУ (Тех. роботи, канікули, банер)
       if (action === "update_config") {
         await kv.set("app_config", configData);
         return res.json({
@@ -125,34 +124,33 @@ module.exports = async (req, res) => {
           message: "✅ Налаштування збережено!",
         });
       }
-      // ДІЯ: ПОШУК КОРИСТУВАЧА ЗА ID
-      if (action === "lookup_user") {
-        const { targetId } = req.body;
-        if (!targetId) return res.status(400).json({ error: "Введіть ID" });
 
+      // ДІЯ: ПОШУК ЮЗЕРА ПО ID
+      if (action === "lookup_user") {
+        if (!targetId) return res.status(400).json({ error: "Введіть ID" });
         try {
-          // Запитуємо в Telegram інформацію про людину
           const chatInfo = await bot.telegram.getChat(targetId);
-          // Перевіряємо, в якій вона групі у нашій базі
-          const userGroup = await kv.get(`user_${targetId}`) || "Не обрано";
-          
-          return res.json({ 
-            success: true, 
+          const userGroup = (await kv.get(`user_${targetId}`)) || "Не обрано";
+          return res.json({
+            success: true,
             user: {
               first_name: chatInfo.first_name || "Невідомо",
               last_name: chatInfo.last_name || "",
               username: chatInfo.username ? `@${chatInfo.username}` : "Немає",
-              group: userGroup
-            } 
+              group: userGroup,
+            },
           });
         } catch (e) {
-          return res.status(404).json({ error: "Юзер не знайдений або ніколи не запускав бота!" });
+          return res
+            .status(404)
+            .json({ error: "Юзер не знайдений або ніколи не запускав бота!" });
         }
       }
+
       return res.status(400).json({ error: "Невідома дія" });
     }
   } catch (error) {
-    console.error(error);
+    console.error("Серверна помилка:", error);
     res.status(500).json({ error: "Помилка сервера" });
   }
 };
