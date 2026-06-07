@@ -25,6 +25,9 @@ bot.use(async (ctx, next) => {
 
     // 2. ПЕРЕВІРКА: КАНІКУЛИ
     if (config && config.vacation) {
+      if (String(ctx.from.id) === process.env.ADMIN_ID) {
+        return next();
+      }
       // Щоб бот не видавав розклад на канікулах
       return ctx.reply(
         "🌴 *Ура, канікули!*\n\nПар немає, час відпочивати. Набирайся сил! 😎🍹",
