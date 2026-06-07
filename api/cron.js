@@ -5,6 +5,24 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 
 module.exports = async (req, res) => {
   try {
+    const config = await kv.get("app_config");
+
+    if (config) {
+      if (config.vacation) {
+        console.log(
+          "🌴 Режим канікул увімкнено. Розсилка будильника скасована.",
+        );
+        return res
+          .status(200)
+          .json({ message: "Канікули. Розсилка не потрібна." });
+      }
+      if (config.maintenance) {
+        console.log("🛠 Технічні роботи. Розсилка будильника скасована.");
+        return res
+          .status(200)
+          .json({ message: "Тех. роботи. Розсилка скасована." });
+      }
+    }
     // Vercel автоматично додає цей секретний ключ для безпеки
     const authHeader = req.headers.authorization;
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
