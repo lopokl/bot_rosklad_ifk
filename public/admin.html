@@ -115,14 +115,30 @@
                     ⏳ Завантаження логів...
                 </div>
             </div>
-            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">🔍 Пошук студента</h2>
+            <h2
+                class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
+            >
+                🔍 Пошук студента
+            </h2>
             <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
                 <div class="flex gap-2 mb-3">
-                    <input type="number" id="lookupIdInput" placeholder="Введіть Telegram ID..." class="w-full p-3 rounded-xl bg-black/20 border border-gray-500/30 outline-none focus:border-blue-500 text-sm">
-                    <button onclick="lookupUser()" class="tg-btn px-4 rounded-xl font-bold shadow-md">Знайти</button>
+                    <input
+                        type="number"
+                        id="lookupIdInput"
+                        placeholder="Введіть Telegram ID..."
+                        class="w-full p-3 rounded-xl bg-black/20 border border-gray-500/30 outline-none focus:border-blue-500 text-sm"
+                    />
+                    <button
+                        onclick="lookupUser()"
+                        class="tg-btn px-4 rounded-xl font-bold shadow-md"
+                    >
+                        Знайти
+                    </button>
                 </div>
-                <div id="lookupResult" class="text-sm bg-black/10 p-3 rounded-xl hidden border border-gray-500/10">
-                    </div>
+                <div
+                    id="lookupResult"
+                    class="text-sm bg-black/10 p-3 rounded-xl hidden border border-gray-500/10"
+                ></div>
             </div>
             <h2
                 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
@@ -138,6 +154,31 @@
                             Технічні роботи
                         </p>
                         <p class="text-xs opacity-60">Вимкнути розклад</p>
+                    </div>
+                    <div
+                        class="flex items-center justify-between mb-4 pb-4 border-b border-gray-500/20"
+                    >
+                        <div>
+                            <p class="font-bold text-sm text-green-400">
+                                Режим канікул 🌴
+                            </p>
+                            <p class="text-xs opacity-60">
+                                Увімкнути екран відпочинку
+                            </p>
+                        </div>
+                        <div
+                            class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in"
+                        >
+                            <input
+                                type="checkbox"
+                                id="vacationToggle"
+                                class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer z-10 transition-transform duration-200 ease-in-out"
+                            />
+                            <label
+                                for="vacationToggle"
+                                class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-500/50 cursor-pointer"
+                            ></label>
+                        </div>
                     </div>
                     <div
                         class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in"
@@ -289,7 +330,9 @@
                     // Заповнюємо налаштування додатку
                     if (data.appConfig) {
                         document.getElementById("maintenanceToggle").checked =
-                            data.appConfig.maintenance;
+                            data.appConfig.maintenance || false;
+                        document.getElementById("vacationToggle").checked =
+                            data.appConfig.vacation || false;
                         document.getElementById("bannerInput").value =
                             data.appConfig.banner || "";
                     }
@@ -358,6 +401,7 @@
                             action: "update_config",
                             configData: {
                                 maintenance: isMaintenance,
+                                vacation: isVacation,
                                 banner: bannerText,
                             },
                         }),
@@ -457,7 +501,9 @@
 
             // ПОШУК КОРИСТУВАЧА
             async function lookupUser() {
-                const targetId = document.getElementById("lookupIdInput").value.trim();
+                const targetId = document
+                    .getElementById("lookupIdInput")
+                    .value.trim();
                 const resultBox = document.getElementById("lookupResult");
                 if (!targetId) return;
 
@@ -466,8 +512,13 @@
 
                 try {
                     const response = await fetch("/api/admin", {
-                        method: "POST", headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ userId: adminId, action: "lookup_user", targetId: targetId })
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            userId: adminId,
+                            action: "lookup_user",
+                            targetId: targetId,
+                        }),
                     });
                     const data = await response.json();
 

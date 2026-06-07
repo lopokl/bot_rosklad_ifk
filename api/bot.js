@@ -3,6 +3,40 @@ const { kv } = require("@vercel/kv");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
+bot.use(async (ctx, next) => {
+  try {
+    // Пропускаємо перевірку, якщо це повідомлення не від юзера (наприклад, системне)
+    if (!ctx.from) return next();
+
+    // Дістаємо конфіг з бази
+    const config = await kv.get("app_config");
+
+    if (config && config.maintenance) {
+      // БОНУС: Якщо це ти (Адмін) — бот буде працювати для тебе навіть під час тех. робіт!
+      if (String(ctx.from.id) === process.env.ADMIN_ID) {
+        return next();
+      }
+
+      // Для всіх інших студентів блокуємо доступ і видаємо повідомлення
+      return ctx.reply(
+        "🛠 *Бот зараз на оновленні!*\n\nМи додаємо нові фічі і виправляємо баги. Повернемося зовсім скоро 🚀",
+        { parse_mode: "Markdown" },
+      );
+    }
+
+    // (Опціонально) Якщо увімкнено канікули, бот теж може реагувати по-іншому
+    if (config && config.vacation) {
+      // Ти можеш додати сюди окрему відповідь, якщо треба,
+      // або просто дозволити йти далі ( return next(); )
+    }
+  } catch (e) {
+    console.error("Помилка перевірки статусу бота:", e);
+  }
+
+  // Якщо тех. робіт немає — пропускаємо команду далі до нормальної роботи
+  return next();
+});
+
 const { sheetsConfig, timeMap } = require("./config");
 
 // ==========================================
@@ -323,7 +357,7 @@ async function sendSchedule(ctx, dayKey, dayName) {
           "Фізична культура",
           "Англ",
           "Виховна",
-          "Навчальна"
+          "Навчальна",
         ];
 
         if (lesson === "-") {

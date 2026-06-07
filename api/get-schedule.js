@@ -62,7 +62,14 @@ module.exports = async (req, res) => {
     if (userId) {
       // 1. Рахуємо кліки по днях (для графіка)
       const dateStr = new Date().toISOString().split("T")[0]; // напр. "2026-04-28"
-      await kv.incr(`stat_visits_${dateStr}`);
+      const visitKey = `stat_visits_${dateStr}`;
+
+      const visitsCount = await kv.incr(visitKey);
+
+      // Якщо це перший клік за сьогодні, ставимо таймер самознищення на 30 днів
+      if (visitsCount === 1) {
+        await kv.expire(visitKey, 30 * 24 * 60 * 60); // 30 днів у секундах
+      }
 
       // 2. Записуємо "Хто і коли" (для логів)
       const time = new Date().toLocaleTimeString("uk-UA", {
@@ -71,8 +78,11 @@ module.exports = async (req, res) => {
       // Дістаємо імена з запиту
       const userName = req.query.name || "Студент";
       const tgUser = req.query.username ? `(@${req.query.username})` : "";
-        
-      await kv.lpush("recent_logs", `[${time}] ${userName} ${tgUser} | ID: ${userId}`);
+
+      await kv.lpush(
+        "recent_logs",
+        `[${time}] ${userName} ${tgUser} | ID: ${userId}`,
+      );
       await kv.ltrim("recent_logs", 0, 29); // Зберігаємо тільки останні 20 записів
     }
     const dayKey = req.query.day || "mon";
@@ -216,14 +226,28 @@ module.exports = async (req, res) => {
             : "";
 
         for (let k = groupCol - 1; k >= 1; k--) {
-          const leftCell = columns[k] ? columns[k].replace(/"/g, "").trim() : "";
-          if (leftCell !== "" && leftCell !== "-" && !ignoredSubjects.some((w) => leftCell.includes(w))) {
-            const leftGroupName = normalizeGroup(headers[k].replace(/"/g, "").trim());
+          const leftCell = columns[k]
+            ? columns[k].replace(/"/g, "").trim()
+            : "";
+          if (
+            leftCell !== "" &&
+            leftCell !== "-" &&
+            !ignoredSubjects.some((w) => leftCell.includes(w))
+          ) {
+            const leftGroupName = normalizeGroup(
+              headers[k].replace(/"/g, "").trim(),
+            );
             const leftGroupAudRow = audByGroup[leftGroupName];
 
-            if (leftGroupAudRow && !isNaN(pairIndex) && leftGroupAudRow[pairIndex]) {
-              const leftAudienceNormalized = normalizeAud(leftGroupAudRow[pairIndex]);
-              
+            if (
+              leftGroupAudRow &&
+              !isNaN(pairIndex) &&
+              leftGroupAudRow[pairIndex]
+            ) {
+              const leftAudienceNormalized = normalizeAud(
+                leftGroupAudRow[pairIndex],
+              );
+
               // Список слів-заглушок, які не можна вважати збігом аудиторії
               const invalidAudiences = ["", "-", "НЕВКАЗАНО"];
 
@@ -245,7 +269,9 @@ module.exports = async (req, res) => {
         if (ourIndex !== -1 && ourIndex < activeGroups.length - 1) {
           const nextCol = activeGroups[ourIndex + 1];
           const pairIndex = parseInt(pairNum, 10);
-          const nextGroupName = normalizeGroup(headers[nextCol].replace(/"/g, "").trim());
+          const nextGroupName = normalizeGroup(
+            headers[nextCol].replace(/"/g, "").trim(),
+          );
           const nextGroupAudRow = audByGroup[nextGroupName];
 
           const ourAudNormalized =
