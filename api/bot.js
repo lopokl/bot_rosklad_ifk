@@ -2,6 +2,13 @@ const { Telegraf, Markup } = require("telegraf");
 const { kv } = require("@vercel/kv");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
+bot.catch((err, ctx) => {
+  console.error('Unhandled bot error:', err);
+  try {
+    ctx.reply('⚠️ Сервіс тимчасово оновлюється або база даних налаштовується. Спробуйте через хвилину! 🔄');
+  } catch (e) {}
+});
+
 
 bot.use(async (ctx, next) => {
   try {
