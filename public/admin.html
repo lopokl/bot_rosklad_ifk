@@ -3,41 +3,41 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Адмін Панель</title>
+        <title>Адмін-панель — Розклад ІФК</title>
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <script src="https://cdn.tailwindcss.com"></script>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
         <style>
+            * {
+                font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            }
             body {
-                background-color: var(--tg-theme-bg-color, #1f2937);
-                color: var(--tg-theme-text-color, #ffffff);
+                background-color: var(--tg-theme-bg-color, #0b1120);
+                color: var(--tg-theme-text-color, #f8fafc);
             }
             .tg-card {
-                background-color: var(--tg-theme-secondary-bg-color, #111827);
-                border: 1px solid rgba(255, 255, 255, 0.05);
+                background-color: var(--tg-theme-secondary-bg-color, #131d32);
+                border: 1px solid rgba(255, 255, 255, 0.07);
+                transition: all 0.2s ease-in-out;
+            }
+            .tg-card:hover {
+                border-color: rgba(255, 255, 255, 0.12);
             }
             .tg-btn {
-                background-color: var(--tg-theme-button-color, #3b82f6);
+                background-color: var(--tg-theme-button-color, #2563eb);
                 color: var(--tg-theme-button-text-color, #ffffff);
             }
             .custom-scroll::-webkit-scrollbar {
-                width: 4px;
+                width: 6px;
+                height: 6px;
             }
             .custom-scroll::-webkit-scrollbar-thumb {
-                background: rgba(255, 255, 255, 0.2);
-                border-radius: 4px;
+                background: rgba(255, 255, 255, 0.15);
+                border-radius: 9999px;
             }
-            @keyframes pulse-anim {
-                0%,
-                100% {
-                    opacity: 1;
-                }
-                50% {
-                    opacity: 0.4;
-                }
-            }
-            .pulse {
-                animation: pulse-anim 1.5s infinite ease-in-out;
+            .custom-scroll::-webkit-scrollbar-track {
+                background: transparent;
             }
             .toggle-checkbox:checked {
                 transform: translateX(100%);
@@ -55,180 +55,315 @@
             }
         </style>
     </head>
-    <body class="p-5 antialiased">
-        <div class="max-w-md mx-auto pb-10">
-            <h1 class="text-2xl font-extrabold mb-2 text-red-500">
-                👑 Панель Адміна
-            </h1>
-            <p class="text-sm opacity-70 mb-6">Аналітика, моніторинг та керування розкладом.</p>
+    <body class="p-4 md:p-6 lg:p-8 antialiased min-h-screen">
 
-            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
-                📈 Аналітика
-            </h2>
-            <div class="grid grid-cols-2 gap-3 mb-3">
-                <div class="tg-card p-4 rounded-2xl shadow-sm text-center">
-                    <p class="text-xs opacity-70 mb-1">Всього юзерів</p>
-                    <p class="text-3xl font-black text-blue-400" id="statUsers">
-                        ...
-                    </p>
-                </div>
-                <div class="tg-card p-4 rounded-2xl shadow-sm text-center">
-                    <p class="text-xs opacity-70 mb-1">Груп студентів</p>
-                    <p class="text-3xl font-black text-green-400" id="statGroupsCount">
-                        ...
-                    </p>
-                </div>
-            </div>
-
-            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
-                📚 Статистика по групах
-            </h2>
-            <div class="tg-card p-4 rounded-2xl shadow-sm mb-6 max-h-48 overflow-y-auto custom-scroll">
-                <div id="statGroups" class="text-sm font-medium space-y-2 pulse">
-                    Завантаження...
-                </div>
-            </div>
-
-            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
-                📊 Відвідуваність (7 днів)
-            </h2>
-            <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
-                <canvas id="activityChart" height="200"></canvas>
-            </div>
-
-            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
-                🕵️ Хто відкривав бота
-            </h2>
-            <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
-                <div id="recentLogs" class="text-[11px] font-mono opacity-80 space-y-1 max-h-40 overflow-y-auto custom-scroll">
-                    ⏳ Завантаження логів...
-                </div>
-            </div>
-
-            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
-                🔍 Пошук студента
-            </h2>
-            <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
-                <div class="flex gap-2 mb-3">
-                    <input
-                        type="number"
-                        id="lookupIdInput"
-                        placeholder="Введіть Telegram ID..."
-                        class="w-full p-3 rounded-xl bg-black/20 border border-gray-500/30 outline-none focus:border-blue-500 text-sm"
-                    />
-                    <button onclick="lookupUser()" class="tg-btn px-4 rounded-xl font-bold shadow-md">
-                        Знайти
-                    </button>
-                </div>
-                <div id="lookupResult" class="text-sm bg-black/10 p-3 rounded-xl hidden border border-gray-500/10"></div>
-            </div>
-
-            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
-                📱 Керування Міні-додатком
-            </h2>
-            <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
-                <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-500/20">
-                    <div>
-                        <p class="font-bold text-sm text-red-400">Технічні роботи 🛠</p>
-                        <p class="text-xs opacity-60">Вимкнути розклад</p>
-                    </div>
-                    <div class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
-                        <input
-                            type="checkbox"
-                            id="maintenanceToggle"
-                            class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer z-10 transition-transform duration-200 ease-in-out"
-                        />
-                        <label for="maintenanceToggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-500/50 cursor-pointer"></label>
-                    </div>
-                </div>
-
-                <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-500/20">
-                    <div>
-                        <p class="font-bold text-sm text-green-400">Режим канікул 🌴</p>
-                        <p class="text-xs opacity-60">Увімкнути екран відпочинку</p>
-                    </div>
-                    <div class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
-                        <input
-                            type="checkbox"
-                            id="vacationToggle"
-                            class="toggle-checkbox toggle-checkbox-green absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer z-10 transition-transform duration-200 ease-in-out"
-                        />
-                        <label for="vacationToggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-500/50 cursor-pointer"></label>
-                    </div>
-                </div>
-
-                <div>
-                    <p class="font-bold text-sm mb-1 text-yellow-400">Глобальний банер</p>
+        <!-- ФОРМА ВХОДУ (ЯКЩО ВІДКРИТО НА ПК БЕЗ ПАРАМЕТРА ID) -->
+        <div id="loginGate" class="hidden min-h-[80vh] flex items-center justify-center p-4">
+            <div class="tg-card w-full max-w-md p-8 rounded-3xl shadow-2xl text-center border border-slate-700">
+                <span class="text-5xl block mb-4">👑</span>
+                <h2 class="text-2xl font-extrabold mb-2">Вхід до Адмін-панелі</h2>
+                <p class="text-xs text-slate-400 mb-6">Введіть ваш Telegram ID, вказаний у змінних оточення Vercel (<code class="text-blue-400 font-mono">ADMIN_ID</code>):</p>
+                <div class="space-y-4">
                     <input
                         type="text"
-                        id="bannerInput"
-                        placeholder="Текст банера..."
-                        class="w-full p-3 rounded-xl bg-black/20 border border-gray-500/30 outline-none focus:border-blue-500 mb-3 text-sm"
+                        id="loginAdminInput"
+                        placeholder="Наприклад: 589123456"
+                        class="w-full p-3.5 rounded-2xl bg-slate-900 border border-slate-700 outline-none focus:border-blue-500 text-center font-mono text-base font-bold text-white"
                     />
-                </div>
-                <button
-                    id="saveConfigBtn"
-                    onclick="saveAppConfig()"
-                    class="w-full py-3 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold shadow-md transition-colors"
-                >
-                    💾 Зберегти налаштування
-                </button>
-            </div>
-
-            <!-- МОНІТОРИНГ РОЗКЛАДУ -->
-            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
-                🔄 Автоматична перевірка розкладу
-            </h2>
-            <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
-                <div class="flex justify-between items-center mb-3">
-                    <div>
-                        <p class="font-bold text-sm">Новий розклад у Google Таблицях</p>
-                        <p class="text-xs opacity-60">Перевірити, чи диспетчер оновив дати пар</p>
-                    </div>
-                    <button id="checkUpdatesBtn" onclick="checkScheduleUpdates()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-md text-sm whitespace-nowrap">
-                        🔍 Перевірити
+                    <button
+                        onclick="loginManual()"
+                        class="tg-btn w-full py-3.5 rounded-2xl font-bold text-sm shadow-lg hover:brightness-110 transition-all"
+                    >
+                        Увійти в панель
                     </button>
                 </div>
-                <div id="checkUpdatesStatus" class="text-xs text-blue-400 mt-2 font-medium"></div>
+                <p id="loginError" class="text-xs text-red-400 font-bold mt-4 hidden"></p>
             </div>
+        </div>
 
-            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
-                ⚙️ Керування сервером
-            </h2>
-            <div class="tg-card p-4 rounded-2xl shadow-sm mb-6 flex justify-between items-center">
-                <div>
-                    <p class="font-bold text-sm">Кеш розкладу</p>
-                    <p class="text-xs opacity-60">Очистити пам'ять таблиць</p>
+        <!-- ОСНОВНИЙ ДАШБОРД (ПК + МОБІЛКА) -->
+        <div id="adminDashboard" class="hidden max-w-7xl mx-auto space-y-6">
+
+            <!-- ВЕРХНЯ ШАПКА ПАНЕЛІ -->
+            <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-800">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-2xl shadow-lg shadow-blue-500/20">
+                        👑
+                    </div>
+                    <div>
+                        <h1 class="text-xl md:text-2xl font-extrabold flex items-center gap-2">
+                            Панель Керування
+                            <span class="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO</span>
+                        </h1>
+                        <p class="text-xs text-slate-400">Моніторинг розкладу, студенти та глобальні налаштування</p>
+                    </div>
                 </div>
-                <button
-                    id="cacheBtn"
-                    onclick="clearCache()"
-                    class="px-4 py-2 bg-yellow-600 text-white font-bold rounded-lg shadow-md text-sm"
-                >
-                    Очистити
-                </button>
+
+                <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 bg-slate-900/80 border border-slate-800 px-3 py-2 rounded-xl text-xs font-mono text-slate-300">
+                        <span class="w-2 h-2 rounded-full bg-green-500 animate-ping"></span>
+                        <span id="adminIdDisplay">ID: ...</span>
+                    </div>
+                    <button
+                        onclick="loadStats()"
+                        title="Оновити дані"
+                        class="p-2.5 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition-all"
+                    >
+                        🔄 Оновити
+                    </button>
+                    <button
+                        onclick="logoutAdmin()"
+                        title="Вийти"
+                        class="p-2.5 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-bold transition-all"
+                    >
+                        Вийти 🚪
+                    </button>
+                </div>
+            </header>
+
+            <!-- KPI КАРТКИ ВЕРХНЬОГО РЯДУ (ПК: 4 В РЯД, МОБ: 2Х2) -->
+            <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="tg-card p-5 rounded-3xl shadow-sm relative overflow-hidden">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs uppercase font-extrabold text-slate-400 tracking-wider">Користувачі</span>
+                        <span class="text-lg">👥</span>
+                    </div>
+                    <h3 class="text-3xl font-black text-blue-400" id="statUsers">--</h3>
+                    <p class="text-[11px] text-slate-500 mt-1">Збережено в базі</p>
+                </div>
+
+                <div class="tg-card p-5 rounded-3xl shadow-sm relative overflow-hidden">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs uppercase font-extrabold text-slate-400 tracking-wider">Груп студентів</span>
+                        <span class="text-lg">🎓</span>
+                    </div>
+                    <h3 class="text-3xl font-black text-emerald-400" id="statGroupsCount">--</h3>
+                    <p class="text-[11px] text-slate-500 mt-1">Активних навчальних груп</p>
+                </div>
+
+                <div class="tg-card p-5 rounded-3xl shadow-sm relative overflow-hidden">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs uppercase font-extrabold text-slate-400 tracking-wider">Переглядів</span>
+                        <span class="text-lg">📈</span>
+                    </div>
+                    <h3 class="text-3xl font-black text-indigo-400" id="statTodayVisits">--</h3>
+                    <p class="text-[11px] text-slate-500 mt-1">Відкриттів за сьогодні</p>
+                </div>
+
+                <div class="tg-card p-5 rounded-3xl shadow-sm relative overflow-hidden">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs uppercase font-extrabold text-slate-400 tracking-wider">Статус бота</span>
+                        <span class="text-lg">⚡</span>
+                    </div>
+                    <h3 class="text-xl font-black text-green-400 mt-1" id="statSystemStatus">Працює</h3>
+                    <p class="text-[11px] text-slate-500 mt-1" id="statSystemDetail">Доступ відкритий</p>
+                </div>
+            </section>
+
+            <!-- ГОЛОВНА РОБОЧА СІТКА ДАШБОРДУ -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+                <!-- ЛІВА КОЛОНКА (7/12 НА ПК): ГРАФІК, ЛОГИ, СТУДЕНТИ -->
+                <div class="lg:col-span-7 space-y-6">
+
+                    <!-- ГРАФІК ВІДВІДУВАНОСТІ ЗА 7 ДНІВ -->
+                    <div class="tg-card p-6 rounded-3xl shadow-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 class="font-bold text-base text-slate-100 flex items-center gap-2">
+                                    <span>📊</span> Відвідуваність за останні 7 днів
+                                </h3>
+                                <p class="text-xs text-slate-400">Динаміка щоденних переглядів розкладу</p>
+                            </div>
+                        </div>
+                        <div class="h-64">
+                            <canvas id="activityChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- ЖИВИЙ ЖУРНАЛ ВІДВІДУВАНЬ -->
+                    <div class="tg-card p-6 rounded-3xl shadow-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 class="font-bold text-base text-slate-100 flex items-center gap-2">
+                                    <span>🕵️‍♂️</span> Журнал останніх входів
+                                </h3>
+                                <p class="text-xs text-slate-400">Хто відкривав розклад у реальному часі</p>
+                            </div>
+                            <span class="text-[11px] font-mono px-2 py-0.5 rounded-md bg-slate-800 text-slate-400">Останні 30</span>
+                        </div>
+                        <div id="recentLogs" class="text-xs font-mono text-slate-300 space-y-2 max-h-56 overflow-y-auto custom-scroll pr-2">
+                            <p class="text-slate-500">Завантаження записів...</p>
+                        </div>
+                    </div>
+
+                    <!-- РОЗПОДІЛ ЗА ГРУПАМИ -->
+                    <div class="tg-card p-6 rounded-3xl shadow-sm">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="font-bold text-base text-slate-100 flex items-center gap-2">
+                                <span>📚</span> Статистика за групами
+                            </h3>
+                            <span class="text-xs text-slate-400 font-mono" id="groupsTotalCount">--</span>
+                        </div>
+                        <div id="statGroups" class="max-h-52 overflow-y-auto custom-scroll space-y-2 pr-2 text-xs">
+                            <p class="text-slate-500">Завантаження списку...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ПРАВА КОЛОНКА (5/12 НА ПК): КЕРУВАННЯ, ОНОВЛЕННЯ, РОЗСИЛКА -->
+                <div class="lg:col-span-5 space-y-6">
+
+                    <!-- КЕРУВАННЯ СТАНОМ СИСТЕМИ -->
+                    <div class="tg-card p-6 rounded-3xl shadow-sm space-y-4">
+                        <h3 class="font-bold text-base text-slate-100 flex items-center gap-2">
+                            <span>⚙️</span> Керування режимами Mini App
+                        </h3>
+
+                        <!-- Тумблер тех. робіт -->
+                        <div class="flex items-center justify-between p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80">
+                            <div>
+                                <p class="font-bold text-sm text-red-400">Технічні роботи 🛠</p>
+                                <p class="text-[11px] text-slate-400">Блокувати розклад для всіх, крім адміна</p>
+                            </div>
+                            <div class="relative inline-block w-12 align-middle select-none">
+                                <input
+                                    type="checkbox"
+                                    id="maintenanceToggle"
+                                    class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-slate-400 appearance-none cursor-pointer z-10 transition-transform duration-200 ease-in-out"
+                                />
+                                <label for="maintenanceToggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-700 cursor-pointer"></label>
+                            </div>
+                        </div>
+
+                        <!-- Тумблер канікул -->
+                        <div class="flex items-center justify-between p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80">
+                            <div>
+                                <p class="font-bold text-sm text-emerald-400">Режим канікул 🌴</p>
+                                <p class="text-[11px] text-slate-400">Показувати студентам екран відпочинку</p>
+                            </div>
+                            <div class="relative inline-block w-12 align-middle select-none">
+                                <input
+                                    type="checkbox"
+                                    id="vacationToggle"
+                                    class="toggle-checkbox-green absolute block w-6 h-6 rounded-full bg-white border-4 border-slate-400 appearance-none cursor-pointer z-10 transition-transform duration-200 ease-in-out"
+                                />
+                                <label for="vacationToggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-700 cursor-pointer"></label>
+                            </div>
+                        </div>
+
+                        <!-- Глобальний банер -->
+                        <div>
+                            <label class="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+                                <span>📢 Глобальний банер (оголошення)</span>
+                                <span class="text-[10px] text-slate-500">Залиште пустим, щоб прибрати</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="bannerInput"
+                                placeholder="Наприклад: Увага! У п'ятницю пари скорочені на 15 хв."
+                                class="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 outline-none focus:border-blue-500 text-xs text-slate-100"
+                            />
+                        </div>
+
+                        <button
+                            id="saveConfigBtn"
+                            onclick="saveAppConfig()"
+                            class="tg-btn w-full py-3 rounded-xl font-bold text-xs shadow-md hover:brightness-110 transition-all"
+                        >
+                            Зберегти налаштування
+                        </button>
+                    </div>
+
+                    <!-- ШВИДКІ ДІЇ: МОНІТОРИНГ ТА КЕШ -->
+                    <div class="tg-card p-6 rounded-3xl shadow-sm space-y-3">
+                        <h3 class="font-bold text-base text-slate-100 flex items-center gap-2">
+                            <span>⚡</span> Швидкі дії з розкладом
+                        </h3>
+
+                        <!-- Перевірка нових розкладів -->
+                        <div class="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-center justify-between gap-3">
+                            <div>
+                                <p class="font-bold text-xs text-slate-200">Перевірка оновлень</p>
+                                <p class="text-[11px] text-slate-400" id="checkUpdatesStatus">Звірка дат у таблицях</p>
+                            </div>
+                            <button
+                                id="checkUpdatesBtn"
+                                onclick="checkScheduleUpdates()"
+                                class="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-sm whitespace-nowrap transition-colors"
+                            >
+                                🔍 Перевірити
+                            </button>
+                        </div>
+
+                        <!-- Очищення кешу -->
+                        <div class="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-center justify-between gap-3">
+                            <div>
+                                <p class="font-bold text-xs text-slate-200">Кеш Google Таблиць</p>
+                                <p class="text-[11px] text-slate-400">Скинути збережені пари</p>
+                            </div>
+                            <button
+                                id="cacheBtn"
+                                onclick="clearCache()"
+                                class="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-sm whitespace-nowrap transition-colors"
+                            >
+                                🧹 Очистити
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ПОШУК СТУДЕНТА ЗА ID -->
+                    <div class="tg-card p-6 rounded-3xl shadow-sm">
+                        <h3 class="font-bold text-base text-slate-100 mb-3 flex items-center gap-2">
+                            <span>🔍</span> Пошук студента
+                        </h3>
+                        <div class="flex gap-2 mb-3">
+                            <input
+                                type="number"
+                                id="lookupIdInput"
+                                placeholder="Telegram ID (напр. 678912345)"
+                                class="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 outline-none focus:border-blue-500 text-xs font-mono text-slate-100"
+                            />
+                            <button
+                                onclick="lookupUser()"
+                                class="tg-btn px-4 rounded-xl font-bold text-xs shadow-md whitespace-nowrap"
+                            >
+                                Знайти
+                            </button>
+                        </div>
+                        <div id="lookupResult" class="text-xs bg-slate-900/90 p-3.5 rounded-xl hidden border border-slate-800 space-y-1"></div>
+                    </div>
+
+                    <!-- РОЗСИЛКА ПОВІДОМЛЕННЯ -->
+                    <div class="tg-card p-6 rounded-3xl shadow-sm">
+                        <h3 class="font-bold text-base text-slate-100 mb-3 flex items-center gap-2">
+                            <span>✉️</span> Розсилка всім користувачам
+                        </h3>
+                        <textarea
+                            id="broadcastMsg"
+                            rows="3"
+                            class="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 outline-none focus:border-blue-500 mb-3 text-xs text-slate-100"
+                            placeholder="Введіть текст оголошення для всіх студентів..."
+                        ></textarea>
+                        <button
+                            id="sendBtn"
+                            onclick="sendBroadcast()"
+                            class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md transition-all"
+                        >
+                            🚀 Розіслати повідомлення
+                        </button>
+                    </div>
+
+                </div>
             </div>
 
-            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
-                ✉️ Повідомлення
-            </h2>
-            <div class="tg-card p-4 rounded-2xl shadow-sm mb-4">
-                <textarea
-                    id="broadcastMsg"
-                    rows="3"
-                    class="w-full p-3 rounded-xl bg-black/20 border border-gray-500/30 outline-none focus:border-blue-500 mb-3 text-sm"
-                    placeholder="Введіть текст оголошення..."
-                ></textarea>
-                <button
-                    id="sendBtn"
-                    onclick="sendBroadcast()"
-                    class="tg-btn w-full py-3 rounded-xl font-bold shadow-md"
-                >
-                    Відправити всім
-                </button>
+            <!-- СТАТУСНЕ ПОВІДОМЛЕННЯ (TOAST) -->
+            <div id="statusToast" class="fixed bottom-6 right-6 z-50 transition-all duration-300 transform translate-y-20 opacity-0 pointer-events-none">
+                <div id="statusContent" class="tg-card px-5 py-3 rounded-2xl shadow-2xl border border-blue-500/50 text-xs font-bold text-white flex items-center gap-2">
+                    --
+                </div>
             </div>
 
-            <div id="status" class="text-center font-bold text-sm mb-6 h-6"></div>
         </div>
 
         <script>
@@ -238,99 +373,203 @@
                 tg.ready();
             }
 
-            const adminId = tg?.initDataUnsafe?.user?.id || new URLSearchParams(window.location.search).get("userId");
+            // Отримуємо adminId з URL, Telegram WebApp або з localStorage (для ПК)
+            function getAdminId() {
+                const urlId = new URLSearchParams(window.location.search).get("userId");
+                if (urlId) {
+                    localStorage.setItem("admin_user_id", urlId);
+                    return urlId;
+                }
+                const tgId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : null;
+                if (tgId) {
+                    localStorage.setItem("admin_user_id", tgId);
+                    return tgId;
+                }
+                return localStorage.getItem("admin_user_id") || "";
+            }
+
+            let adminId = getAdminId();
             let chartInstance = null;
 
-            function showStatus(html) {
-                const statusEl = document.getElementById("status");
-                statusEl.innerHTML = html;
-                setTimeout(() => (statusEl.innerHTML = ""), 5000);
+            function showToast(text, isError = false) {
+                const toast = document.getElementById("statusToast");
+                const content = document.getElementById("statusContent");
+                content.innerHTML = text;
+                content.className = `tg-card px-5 py-3 rounded-2xl shadow-2xl text-xs font-bold flex items-center gap-2 ${
+                    isError ? "border-red-500/60 text-red-200" : "border-emerald-500/60 text-emerald-200"
+                }`;
+                toast.classList.remove("translate-y-20", "opacity-0", "pointer-events-none");
+                setTimeout(() => {
+                    toast.classList.add("translate-y-20", "opacity-0", "pointer-events-none");
+                }, 4000);
+            }
+
+            function loginManual() {
+                const input = document.getElementById("loginAdminInput").value.trim();
+                const err = document.getElementById("loginError");
+                if (!input) {
+                    err.textContent = "Будь ласка, введіть Telegram ID!";
+                    err.classList.remove("hidden");
+                    return;
+                }
+                adminId = input;
+                localStorage.setItem("admin_user_id", input);
+                loadStats();
+            }
+
+            function logoutAdmin() {
+                localStorage.removeItem("admin_user_id");
+                adminId = "";
+                document.getElementById("adminDashboard").classList.add("hidden");
+                document.getElementById("loginGate").classList.remove("hidden");
             }
 
             async function loadStats() {
-                if (!adminId) return;
+                if (!adminId) {
+                    document.getElementById("adminDashboard").classList.add("hidden");
+                    document.getElementById("loginGate").classList.remove("hidden");
+                    return;
+                }
+
                 try {
                     const res = await fetch(`/api/admin?userId=${adminId}`);
                     const data = await res.json();
 
                     if (data.error) {
-                        document.getElementById("statGroups").innerHTML = `<span class="text-red-500">${data.error}</span>`;
+                        document.getElementById("adminDashboard").classList.add("hidden");
+                        document.getElementById("loginGate").classList.remove("hidden");
+                        const err = document.getElementById("loginError");
+                        err.textContent = `Помилка доступу: ${data.error}`;
+                        err.classList.remove("hidden");
                         return;
                     }
 
-                    document.getElementById("statUsers").innerText = data.totalUsers || 0;
-                    document.getElementById("statGroupsCount").innerText = data.activeGroupsCount || (data.allGroups ? data.allGroups.length : 0);
+                    // Успішний вхід
+                    document.getElementById("loginGate").classList.add("hidden");
+                    document.getElementById("adminDashboard").classList.remove("hidden");
+                    document.getElementById("adminIdDisplay").textContent = `ID: ${adminId}`;
 
+                    // KPI Метрики
+                    document.getElementById("statUsers").innerText = data.totalUsers || 0;
+                    document.getElementById("statGroupsCount").innerText = data.activeGroupsCount || 0;
+                    document.getElementById("groupsTotalCount").innerText = `${data.activeGroupsCount || 0} груп`;
+
+                    const todayVisits = data.chartData && data.chartData.length > 0
+                        ? data.chartData[data.chartData.length - 1]
+                        : 0;
+                    document.getElementById("statTodayVisits").innerText = todayVisits;
+
+                    // Статус системи
+                    if (data.appConfig) {
+                        const m = data.appConfig.maintenance;
+                        const v = data.appConfig.vacation;
+                        document.getElementById("maintenanceToggle").checked = !!m;
+                        document.getElementById("vacationToggle").checked = !!v;
+                        document.getElementById("bannerInput").value = data.appConfig.banner || "";
+
+                        const statusEl = document.getElementById("statSystemStatus");
+                        const detailEl = document.getElementById("statSystemDetail");
+                        if (m) {
+                            statusEl.innerText = "Тех. роботи";
+                            statusEl.className = "text-xl font-black text-red-400 mt-1";
+                            detailEl.innerText = "Доступ заблоковано";
+                        } else if (v) {
+                            statusEl.innerText = "Канікули";
+                            statusEl.className = "text-xl font-black text-emerald-400 mt-1";
+                            detailEl.innerText = "Режим відпочинку";
+                        } else {
+                            statusEl.innerText = "Працює";
+                            statusEl.className = "text-xl font-black text-green-400 mt-1";
+                            detailEl.innerText = "Усі функції активні";
+                        }
+                    }
+
+                    // Статистика за групами
                     const groupsBox = document.getElementById("statGroups");
-                    groupsBox.classList.remove("pulse");
                     if (data.allGroups && data.allGroups.length > 0) {
                         groupsBox.innerHTML = data.allGroups
                             .map((g, i) => {
-                                let parts = g.split(" — ");
-                                return `<div class="flex justify-between border-b border-gray-500/10 pb-1">
-                                    <span>${i + 1}. <span class="text-blue-400 font-bold">${parts[0]}</span></span>
-                                    <span class="opacity-70">${parts[1]}</span>
-                                </div>`;
+                                const parts = g.split(" — ");
+                                return `
+                                    <div class="flex justify-between items-center p-2 rounded-xl bg-slate-900/50 border border-slate-800">
+                                        <span class="font-bold text-slate-200">
+                                            <span class="text-blue-400 mr-1.5 font-mono">#${i + 1}</span>
+                                            ${parts[0]}
+                                        </span>
+                                        <span class="font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded-md border border-slate-700">${parts[1]}</span>
+                                    </div>
+                                `;
                             })
                             .join("");
                     } else {
-                        groupsBox.innerHTML = "<p class='opacity-50'>Немає даних</p>";
+                        groupsBox.innerHTML = "<p class='text-slate-500 py-3 text-center'>Дані відсутні або ще ніхто не обрав групу</p>";
                     }
 
+                    // Журнал входів
                     const logsBox = document.getElementById("recentLogs");
                     if (data.recentLogs && data.recentLogs.length > 0) {
                         logsBox.innerHTML = data.recentLogs
                             .map((log) => {
-                                return `<p>${log.replace(/ID: (\d+)/, 'ID: <span class="text-blue-400">$1</span>')}</p>`;
+                                return `<p class="p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/60">${log.replace(/ID: (\d+)/, 'ID: <span class="text-blue-400 font-bold">$1</span>')}</p>`;
                             })
                             .join("");
                     } else {
-                        logsBox.innerHTML = "<p>Ще ніхто не заходив</p>";
+                        logsBox.innerHTML = "<p class='text-slate-500 py-3 text-center'>Поки що немає записів входів</p>";
                     }
 
-                    if (data.appConfig) {
-                        document.getElementById("maintenanceToggle").checked = data.appConfig.maintenance || false;
-                        document.getElementById("vacationToggle").checked = data.appConfig.vacation || false;
-                        document.getElementById("bannerInput").value = data.appConfig.banner || "";
-                    }
-
+                    // Графік Chart.js
                     const ctx = document.getElementById("activityChart").getContext("2d");
                     if (chartInstance) chartInstance.destroy();
                     chartInstance = new Chart(ctx, {
                         type: "line",
                         data: {
-                            labels: data.chartLabels,
+                            labels: data.chartLabels || [],
                             datasets: [
                                 {
-                                    label: "Відкрито розклад",
-                                    data: data.chartData,
+                                    label: "Переглядів розкладу",
+                                    data: data.chartData || [],
                                     borderColor: "#3b82f6",
-                                    backgroundColor: "rgba(59, 130, 246, 0.2)",
+                                    backgroundColor: "rgba(59, 130, 246, 0.15)",
                                     borderWidth: 3,
                                     fill: true,
-                                    tension: 0.4,
+                                    tension: 0.35,
+                                    pointBackgroundColor: "#60a5fa",
+                                    pointBorderColor: "#1e3a8a",
+                                    pointRadius: 4,
                                 },
                             ],
                         },
                         options: {
                             responsive: true,
-                            plugins: { legend: { display: false } },
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: "#0f172a",
+                                    titleColor: "#93c5fd",
+                                    bodyColor: "#f8fafc",
+                                    borderColor: "#334155",
+                                    borderWidth: 1,
+                                    padding: 10,
+                                    cornerRadius: 12,
+                                },
+                            },
                             scales: {
                                 y: {
                                     beginAtZero: true,
-                                    ticks: {
-                                        stepSize: 1,
-                                        color: "rgba(255,255,255,0.6)",
-                                    },
+                                    grid: { color: "rgba(255,255,255,0.05)" },
+                                    ticks: { stepSize: 1, color: "rgba(255,255,255,0.5)" },
                                 },
                                 x: {
-                                    ticks: { color: "rgba(255,255,255,0.6)" },
+                                    grid: { color: "rgba(255,255,255,0.05)" },
+                                    ticks: { color: "rgba(255,255,255,0.5)" },
                                 },
                             },
                         },
                     });
+
                 } catch (e) {
-                    console.error(e);
+                    showToast("Помилка з'єднання з API адмінки", true);
                 }
             }
 
@@ -338,8 +577,8 @@
                 const btn = document.getElementById("checkUpdatesBtn");
                 const statusBox = document.getElementById("checkUpdatesStatus");
                 btn.disabled = true;
-                btn.innerText = "⏳ Перевірка...";
-                statusBox.innerText = "Зчитуємо свіжі дані з Google Таблиць...";
+                btn.innerText = "⏳ Звірка...";
+                statusBox.innerText = "Аналізуємо Google Таблиці...";
 
                 try {
                     const res = await fetch("/api/admin", {
@@ -349,15 +588,15 @@
                     });
                     const data = await res.json();
                     if (data.success) {
-                        statusBox.innerHTML = `✅ ${data.message || "Перевірено"}`;
-                        if (data.updates && data.updates.length > 0) {
-                            showStatus(`<span class="text-green-400 font-bold">Знайдено оновлень: ${data.updates.length}!</span>`);
-                        }
+                        statusBox.innerText = data.message || "Розклад актуальний";
+                        showToast(`✅ ${data.message}`);
                     } else {
-                        statusBox.innerHTML = `❌ Помилка: ${data.error || "Збій"}`;
+                        statusBox.innerText = "Помилка перевірки";
+                        showToast(`❌ ${data.error}`, true);
                     }
                 } catch (e) {
-                    statusBox.innerHTML = "❌ Помилка зв'язку з сервером";
+                    statusBox.innerText = "Збій запиту";
+                    showToast("Помилка з'єднання", true);
                 } finally {
                     btn.disabled = false;
                     btn.innerText = "🔍 Перевірити";
@@ -366,14 +605,13 @@
 
             async function saveAppConfig() {
                 const btn = document.getElementById("saveConfigBtn");
-                if (!adminId) return;
                 const isMaintenance = document.getElementById("maintenanceToggle").checked;
                 const isVacation = document.getElementById("vacationToggle").checked;
                 const bannerText = document.getElementById("bannerInput").value.trim();
 
                 btn.disabled = true;
                 btn.innerText = "⏳ Збереження...";
-                btn.classList.add("opacity-50");
+
                 try {
                     const response = await fetch("/api/admin", {
                         method: "POST",
@@ -388,17 +626,44 @@
                             },
                         }),
                     });
-                    const data = await response.json();
-                    if (data.error)
-                        showStatus(`<span class="text-red-500">❌ ${data.error}</span>`);
-                    else
-                        showStatus(`<span class="text-green-500">${data.message}</span>`);
-                } catch (err) {
-                    showStatus(`<span class="text-red-500">❌ Помилка з'єднання</span>`);
+                    const res = await response.json();
+                    if (res.success) {
+                        showToast("✅ Налаштування успішно збережено!");
+                        loadStats();
+                    } else {
+                        showToast(`❌ ${res.error}`, true);
+                    }
+                } catch (e) {
+                    showToast("Помилка збереження", true);
                 } finally {
                     btn.disabled = false;
-                    btn.innerText = "💾 Зберегти налаштування";
-                    btn.classList.remove("opacity-50");
+                    btn.innerText = "Зберегти налаштування";
+                }
+            }
+
+            async function clearCache() {
+                if (!confirm("Ви впевнені, що хочете очистити кеш таблиць? Розклад буде завантажено наново з Google Таблиць.")) return;
+                const btn = document.getElementById("cacheBtn");
+                btn.disabled = true;
+                btn.innerText = "⏳...";
+
+                try {
+                    const response = await fetch("/api/admin", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ userId: adminId, action: "clear_cache" }),
+                    });
+                    const res = await response.json();
+                    if (res.success) {
+                        showToast("🧹 Кеш розкладу успішно очищено!");
+                    } else {
+                        showToast(`❌ ${res.error}`, true);
+                    }
+                } catch (e) {
+                    showToast("Помилка запиту", true);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = "🧹 Очистити";
                 }
             }
 
@@ -408,105 +673,63 @@
                 if (!targetId) return;
 
                 resultBox.classList.remove("hidden");
-                resultBox.innerHTML = "⏳ Шукаю...";
+                resultBox.innerHTML = "<p class='text-slate-400'>Пошук...</p>";
 
                 try {
-                    const response = await fetch("/api/admin", {
+                    const res = await fetch("/api/admin", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            userId: adminId,
-                            action: "lookup_user",
-                            targetId: targetId,
-                        }),
+                        body: JSON.stringify({ userId: adminId, action: "lookup_user", targetId }),
                     });
-                    const data = await response.json();
-
-                    if (data.error) {
-                        resultBox.innerHTML = `❌ <span class="text-red-400">${data.error}</span>`;
-                    } else {
-                        const u = data.user;
+                    const data = await res.json();
+                    if (data.success) {
                         resultBox.innerHTML = `
-                        <p class="mb-1"><span class="opacity-60">Ім'я:</span> <span class="font-bold">${u.first_name} ${u.last_name}</span></p>
-                        <p class="mb-1"><span class="opacity-60">Юзернейм:</span> <span class="text-blue-400 font-bold">${u.username}</span></p>
-                        <p><span class="opacity-60">Група:</span> <span class="text-green-400 font-bold">${u.group}</span></p>
-                    `;
+                            <p class="font-bold text-slate-100">${data.user.first_name} ${data.user.last_name}</p>
+                            <p class="text-blue-400 font-mono">${data.user.username}</p>
+                            <p class="text-slate-400">Група: <span class="font-bold text-emerald-400">${data.user.group}</span></p>
+                        `;
+                    } else {
+                        resultBox.innerHTML = `<p class="text-red-400">${data.error}</p>`;
                     }
-                } catch (err) {
-                    resultBox.innerHTML = `❌ Помилка з'єднання`;
-                }
-            }
-
-            async function clearCache() {
-                const btn = document.getElementById("cacheBtn");
-                if (!adminId) return;
-                btn.disabled = true;
-                btn.innerText = "⏳...";
-                btn.classList.add("opacity-50");
-                try {
-                    const response = await fetch("/api/admin", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            userId: adminId,
-                            action: "clear_cache",
-                        }),
-                    });
-                    const data = await response.json();
-                    if (data.error)
-                        showStatus(`<span class="text-red-500">❌ ${data.error}</span>`);
-                    else
-                        showStatus(`<span class="text-green-500">${data.message}</span>`);
-                } catch (err) {
-                    showStatus(`<span class="text-red-500">❌ Помилка</span>`);
-                } finally {
-                    btn.disabled = false;
-                    btn.innerText = "Очистити";
-                    btn.classList.remove("opacity-50");
+                } catch (e) {
+                    resultBox.innerHTML = "<p class='text-red-400'>Помилка пошуку</p>";
                 }
             }
 
             async function sendBroadcast() {
-                const msg = document.getElementById("broadcastMsg").value;
+                const msg = document.getElementById("broadcastMsg").value.trim();
                 const btn = document.getElementById("sendBtn");
-                if (!msg.trim()) {
-                    if (tg?.showAlert) tg.showAlert("Введіть текст!");
-                    else alert("Введіть текст!");
+                if (!msg) {
+                    alert("Введіть текст повідомлення для розсилки!");
                     return;
                 }
-                if (!adminId) {
-                    showStatus(`<span class="text-red-500">Помилка ID</span>`);
-                    return;
-                }
+                if (!confirm(`Відправити це повідомлення ВСІМ користувачам бота?\n\n"${msg}"`)) return;
 
                 btn.disabled = true;
-                btn.innerText = "⏳ Відправка...";
-                btn.classList.add("opacity-50");
+                btn.innerText = "⏳ Розсилка повідомлень...";
+
                 try {
                     const response = await fetch("/api/admin", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            userId: adminId,
-                            action: "broadcast",
-                            message: msg,
-                        }),
+                        body: JSON.stringify({ userId: adminId, action: "broadcast", message: msg }),
                     });
-                    const data = await response.json();
-                    if (data.error) showStatus(`❌ ${data.error}`);
-                    else {
-                        showStatus(`✅ Відправлено ${data.count} юзерам!`);
+                    const res = await response.json();
+                    if (res.success) {
+                        showToast(`📢 ${res.message}`);
                         document.getElementById("broadcastMsg").value = "";
+                    } else {
+                        showToast(`❌ ${res.error}`, true);
                     }
-                } catch (err) {
-                    showStatus(`❌ Помилка з'єднання`);
+                } catch (e) {
+                    showToast("Помилка розсилки", true);
                 } finally {
                     btn.disabled = false;
-                    btn.innerText = "Відправити всім";
-                    btn.classList.remove("opacity-50");
+                    btn.innerText = "🚀 Розіслати повідомлення";
                 }
             }
 
+            // Автостарт
             loadStats();
         </script>
     </body>

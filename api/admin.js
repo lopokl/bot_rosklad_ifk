@@ -3,6 +3,8 @@ const { kv } = require("@vercel/kv");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
+const cleanId = (id) => String(id || "").replace(/[^0-9]/g, "");
+
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -11,23 +13,30 @@ module.exports = async (req, res) => {
   if (req.method === "OPTIONS") return res.status(200).end();
 
   try {
+    const adminEnvId = cleanId(process.env.ADMIN_ID);
+
     // ==========================================
     // 1. ВИДАЧА СТАТИСТИКИ (GET)
     // ==========================================
     if (req.method === "GET") {
-      const userId = req.query.userId;
-      if (String(userId) !== process.env.ADMIN_ID)
-        return res.status(403).json({ error: "Доступ заборонено" });
+      const userId = cleanId(req.query.userId);
+      if (!userId || !adminEnvId || userId !== adminEnvId) {
+        return res.status(403).json({ error: "Доступ заборонено (невірний ADMIN_ID)" });
+      }
 
-      let [, keys] = await kv.scan(0, { match: "user_*", count: 2000 });
-      let totalUsers = 0,
-        groupCounts = {};
+      let totalUsers = 0;
+      let groupCounts = {};
 
-      for (let key of keys) {
-        if (key.includes("_notif") || key.includes("_pinned")) continue;
-        totalUsers++;
-        const group = await kv.get(key);
-        if (group) groupCounts[group] = (groupCounts[group] || 0) + 1;
+      try {
+        let [, keys] = await kv.scan(0, { match: "user_*", count: 2000 });
+        for (let key of keys) {
+          if (key.includes("_notif") || key.includes("_pinned")) continue;
+          totalUsers++;
+          const group = await kv.get(key);
+          if (group) groupCounts[group] = (groupCounts[group] || 0) + 1;
+        }
+      } catch (e) {
+        console.log("KV scan warning:", e.message);
       }
 
       const activeGroupsCount = Object.keys(groupCounts).length;
@@ -42,18 +51,29 @@ module.exports = async (req, res) => {
         const d = new Date();
         d.setDate(d.getDate() - i);
         const dateStr = d.toISOString().split("T")[0];
-        const visits = (await kv.get(`stat_visits_${dateStr}`)) || 0;
+        let visits = 0;
+        try {
+          visits = (await kv.get(`stat_visits_${dateStr}`)) || 0;
+        } catch (e) {}
         chartLabels.push(dateStr.slice(5));
         chartData.push(visits);
       }
 
       // Логи та Конфіг
-      const recentLogs = (await kv.lrange("recent_logs", 0, 29)) || [];
-      const appConfig = (await kv.get("app_config")) || {
+      let recentLogs = [];
+      try {
+        recentLogs = (await kv.lrange("recent_logs", 0, 29)) || [];
+      } catch (e) {}
+
+      let appConfig = {
         maintenance: false,
         vacation: false,
         banner: "",
       };
+      try {
+        const savedConfig = await kv.get("app_config");
+        if (savedConfig) appConfig = savedConfig;
+      } catch (e) {}
 
       return res.json({
         totalUsers,
@@ -70,14 +90,18 @@ module.exports = async (req, res) => {
     // 2. ДІЇ АДМІНІСТРАТОРА (POST)
     // ==========================================
     if (req.method === "POST") {
-      const { userId, action, message, configData, targetId } = req.body;
-      if (String(userId) !== process.env.ADMIN_ID)
-        return res.status(403).json({ error: "Доступ заборонено" });
+      const { userId, action, message, configData, targetId } = req.body || {};
+      const userCleanId = cleanId(userId);
+
+      if (!userCleanId || !adminEnvId || userCleanId !== adminEnvId) {
+        return res.status(403).json({ error: "Доступ заборонено (невірний ADMIN_ID)" });
+      }
 
       // ДІЯ: РОЗСИЛКА
       if (action === "broadcast") {
         if (!message || message.trim() === "")
           return res.status(400).json({ error: "Повідомлення порожнє" });
+
         let [, keys] = await kv.scan(0, { match: "user_*", count: 1000 });
         let userIds = keys
           .filter((k) => !k.includes("_notif"))
@@ -122,12 +146,14 @@ module.exports = async (req, res) => {
 
       // ДІЯ: ОЧИЩЕННЯ КЕШУ
       if (action === "clear_cache") {
-        const keys = await kv.keys("cache_*");
-        if (keys.length > 0) await kv.del(...keys);
+        try {
+          const keys = await kv.keys("cache_*");
+          if (keys.length > 0) await kv.del(...keys);
+        } catch (e) {}
         return res.json({ success: true, message: `✅ Кеш успішно очищено!` });
       }
 
-      // ДІЯ: ОНОВЛЕННЯ КОНФІГУ ДОДАТКУ (Тех. роботи, канікули, банер)
+      // ДІЯ: ОНОВЛЕННЯ КОНФІГУ ДОДАТКУ
       if (action === "update_config") {
         await kv.set("app_config", configData);
         return res.json({
@@ -141,7 +167,11 @@ module.exports = async (req, res) => {
         if (!targetId) return res.status(400).json({ error: "Введіть ID" });
         try {
           const chatInfo = await bot.telegram.getChat(targetId);
-          const userGroup = (await kv.get(`user_${targetId}`)) || "Не обрано";
+          let userGroup = "Не обрано";
+          try {
+            userGroup = (await kv.get(`user_${targetId}`)) || "Не обрано";
+          } catch (e) {}
+
           return res.json({
             success: true,
             user: {
@@ -160,8 +190,10 @@ module.exports = async (req, res) => {
 
       return res.status(400).json({ error: "Невідома дія" });
     }
+
+    return res.status(405).json({ error: "Метод не підтримується" });
   } catch (error) {
-    console.error("Серверна помилка:", error);
-    res.status(500).json({ error: "Помилка сервера" });
+    console.error("Помилка admin API:", error);
+    res.status(500).json({ error: "Помилка сервера: " + error.message });
   }
 };
