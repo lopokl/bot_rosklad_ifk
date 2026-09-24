@@ -143,46 +143,25 @@ bot.command("start", async (ctx) => {
 });
 
 // ==========================================
-// КОМАНДА АДМІНІСТРАТОРА
+// КОМАНДА АДМІНІСТРАТОРА (/admin та /admin_test)
 // ==========================================
-bot.command("admin_test", (ctx) => {
-  // Перевіряємо, чи ID користувача збігається з твоїм ADMIN_ID з Vercel
-  if (String(ctx.from.id) === process.env.ADMIN_ID) {
+const handleAdmin = (ctx) => {
+  if (String(ctx.from.id) === String(process.env.ADMIN_ID)) {
+    const adminUrl = `${APP_BASE_URL}/admin.html?userId=${ctx.from.id}`;
     return ctx.reply(
-      "👑 Вітаю, пане Адміністратор! Ваша панель готова:",
+      "👑 Вітаю, пане Адміністратор! Ваша адмін-панель готова:",
       Markup.inlineKeyboard([
-        // ОБОВ'ЯЗКОВО ЗАМІНИ ПОСИЛАННЯ НА СВІЙ VERCEL:
-        Markup.button.webApp(
-          "⚙️ Відкрити Адмінку",
-          `${APP_BASE_URL}/admin.html`,
-        ),
+        [Markup.button.webApp("⚙️ Відкрити Адмінку (Mini App)", adminUrl)],
+        [Markup.button.url("🌐 Відкрити у браузері", adminUrl)],
       ]),
     );
   } else {
-    // Якщо хтось інший введе /admin, бот прикинеться дурником
     return ctx.reply("Я не розумію цю команду 🤷‍♂️");
   }
-});
+};
 
-bot.hears("Змінити групу", async (ctx) => {
-  if (ctx.chat.type !== "private") return;
-  await ctx.reply("🔄 Завантажую список...");
-  const groups = await getAvailableGroups();
-  return ctx.reply(
-    "Обери нову групу:",
-    Markup.keyboard(chunkArray(groups, 3)).resize(),
-  );
-});
-
-// Реєстрація в приватному чаті
-bot.hears(/^\d{3}.*-[А-ЯІЇЄA-Z]/i, async (ctx) => {
-  if (ctx.chat.type !== "private") return;
-  const group = normalizeGroup(ctx.message.text);
-  await kv.set(`user_${ctx.from.id}`, group);
-  return ctx.reply(`✅ Збережено: **${group}**.\nТисни /menu`, {
-    parse_mode: "Markdown",
-  });
-});
+bot.command("admin", handleAdmin);
+bot.command("admin_test", handleAdmin);
 
 bot.command("menu", (ctx) => {
   const kb = [
