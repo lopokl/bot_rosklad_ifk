@@ -147,7 +147,7 @@ bot.command("admin_test", (ctx) => {
         // ОБОВ'ЯЗКОВО ЗАМІНИ ПОСИЛАННЯ НА СВІЙ VERCEL:
         Markup.button.webApp(
           "⚙️ Відкрити Адмінку",
-          "https://bot-rosklad-ifk.vercel.app/admin.html",
+          `${APP_BASE_URL}/admin.html`,
         ),
       ]),
     );
@@ -197,7 +197,7 @@ bot.hears("⚙️ Налаштування", (ctx) => {
     Markup.inlineKeyboard([
       Markup.button.webApp(
         "Відкрити Налаштування",
-        "https://bot-rosklad-ifk.vercel.app/settings.html",
+        `${APP_BASE_URL}/settings.html`,
       ), // ЗАМІНИ НА СВІЙ ДОМЕН!
     ]),
   );
