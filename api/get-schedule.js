@@ -8,15 +8,21 @@ const { sheetsConfig, timeMap } = require("../lib/config");
 // ==========================================
 async function getSheetData(sheetId, gid = "0") {
   const cacheKey = `cache_${sheetId}_${gid}`;
-  const cachedData = await kv.get(cacheKey);
-  if (cachedData) return cachedData;
+  try {
+    const cachedData = await kv.get(cacheKey);
+    if (cachedData) return cachedData;
+  } catch (e) {
+    // Якщо база даних тимчасово недоступна, продовжуємо без кешу
+  }
 
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
   const response = await fetch(url);
   const textData = await response.text();
   const rows = textData.split("\n");
 
-  await kv.set(cacheKey, rows, { ex: 3600 });
+  try {
+    await kv.set(cacheKey, rows, { ex: 3600 });
+  } catch (e) {}
   return rows;
 }
 
@@ -44,77 +50,83 @@ function normalizeGroup(name) {
     .trim();
 }
 
-// Нормалізація номера аудиторії для порівняння
 function normalizeAud(aud) {
   if (!aud) return "";
-  return String(aud).replace(/"/g, "").replace(/\s+/g, "").toUpperCase();
+  return aud
+    .replace(/["\s]/g, "")
+    .replace(/[a-zA-Z]/g, (char) => {
+      const map = { a: "а", b: "б", c: "с", e: "е", i: "і", k: "к", m: "м", o: "о", p: "р", t: "т", x: "х" };
+      return map[char.toLowerCase()] || char;
+    })
+    .toLowerCase();
 }
 
 module.exports = async (req, res) => {
-  // Додаємо заголовки, щоб додаток міг безпечно отримувати дані
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") return res.status(200).end();
 
   try {
     const userId = req.query.userId;
+    const dayKey = req.query.day || "mon";
+
+    if (!sheetsConfig[dayKey]) {
+      return res.status(400).json({ error: "Невірний день тижня" });
+    }
 
     // --- 📊 ЗБІР СТАТИСТИКИ ДЛЯ АДМІНКИ ---
-    if (userId) {
-      // 1. Рахуємо кліки по днях (для графіка)
-      const dateStr = new Date().toISOString().split("T")[0]; // напр. "2026-04-28"
-      const visitKey = `stat_visits_${dateStr}`;
+    if (userId && userId !== "0") {
+      try {
+        const dateStr = new Date().toISOString().split("T")[0];
+        const visitKey = `stat_visits_${dateStr}`;
+        const visitsCount = await kv.incr(visitKey);
+        if (visitsCount === 1) {
+          await kv.expire(visitKey, 30 * 24 * 60 * 60);
+        }
 
-      const visitsCount = await kv.incr(visitKey);
+        const time = new Date().toLocaleTimeString("uk-UA", {
+          timeZone: "Europe/Kyiv",
+        });
+        const userName = req.query.name || "Студент";
+        const tgUser = req.query.username ? `(@${req.query.username})` : "";
 
-      // Якщо це перший клік за сьогодні, ставимо таймер самознищення на 30 днів
-      if (visitsCount === 1) {
-        await kv.expire(visitKey, 30 * 24 * 60 * 60); // 30 днів у секундах
-      }
+        await kv.lpush(
+          "recent_logs",
+          `[${time}] ${userName} ${tgUser} | ID: ${userId}`,
+        );
+        await kv.ltrim("recent_logs", 0, 29);
+      } catch (e) {}
 
-      // 2. Записуємо "Хто і коли" (для логів)
-      const time = new Date().toLocaleTimeString("uk-UA", {
-        timeZone: "Europe/Kyiv",
-      });
-      // Дістаємо імена з запиту
-      const userName = req.query.name || "Студент";
-      const tgUser = req.query.username ? `(@${req.query.username})` : "";
-
-      await kv.lpush(
-        "recent_logs",
-        `[${time}] ${userName} ${tgUser} | ID: ${userId}`,
-      );
-      await kv.ltrim("recent_logs", 0, 29); // Зберігаємо тільки останні 20 записів
-    }
-    const dayKey = req.query.day || "mon";
-    if (!userId) {
-      return res.status(400).json({ error: "Немає ID користувача" });
-    }
-
-    // --- 🛡 ЗАХИСТ ВІД СПАМУ (RATE-LIMITING) ---
-    const limitKey = `rate_limit_${userId}`;
-    const requestsCount = await kv.incr(limitKey); // Збільшуємо лічильник на 1
-
-    // Якщо це перший запит за останній час, ставимо таймер скидання на 60 секунд
-    if (requestsCount === 1) {
-      await kv.expire(limitKey, 60);
+      // Rate limit
+      try {
+        const limitKey = `rate_limit_${userId}`;
+        const requestsCount = await kv.incr(limitKey);
+        if (requestsCount === 1) {
+          await kv.expire(limitKey, 60);
+        }
+        if (requestsCount > 25) {
+          return res.status(429).json({ error: "Забагато запитів! Зачекайте хвилинку ⏳" });
+        }
+      } catch (e) {}
     }
 
-    // Якщо юзер натиснув кнопку більше 15 разів за хвилину - блокуємо
-    if (requestsCount > 15) {
-      console.log(`⚠️ Спам від юзера: ${userId}`);
-      return res
-        .status(429)
-        .json({ error: "Забагато запитів! Почекай хвилинку ⏳" });
+    // --- ДІСТАЄМО ГРУПУ: або з параметру group, або з бази по userId ---
+    let userGroup = req.query.group ? decodeURIComponent(req.query.group) : null;
+    if (!userGroup && userId && userId !== "0") {
+      try {
+        userGroup = await kv.get(`user_${userId}`);
+      } catch (e) {}
     }
-    // ------------------------------------------
 
-    // Дістаємо групу з бази
-    const userGroup = await kv.get(`user_${userId}`);
     if (!userGroup) {
-      return res
-        .status(404)
-        .json({ error: "Групу не знайдено. Спочатку вибери її в боті." });
+      return res.status(404).json({
+        error: "Групу не обрано. Будь ласка, вкажіть вашу групу.",
+      });
     }
+
+    userGroup = normalizeGroup(userGroup);
 
     const sheetId = sheetsConfig[dayKey].id;
     const [itRows, finRows, entRows, audRows] = await Promise.all([
@@ -128,33 +140,34 @@ module.exports = async (req, res) => {
 
     // Шукаємо дату
     let targetDate = "Сьогодні";
-    for (let i = 0; i < Math.min(10, itRows.length); i++) {
-      const columns = itRows[i].split(",");
-      for (let col of columns) {
-        const cleanCol = col.replace(/"/g, "").trim();
-        if (
-          cleanCol.toLowerCase().includes("на ") &&
-          cleanCol.includes("202")
-        ) {
-          targetDate = cleanCol.replace(/^на\s+/i, "");
-          break;
+    for (let rows of allDepartments) {
+      if (rows && rows.length > 0) {
+        for (let r = 0; r < Math.min(5, rows.length); r++) {
+          const m = rows[r].match(/\d{2}\.\d{2}\.\d{4}/);
+          if (m) {
+            targetDate = m[0];
+            break;
+          }
         }
+        if (targetDate !== "Сьогодні") break;
       }
-      if (targetDate !== "Сьогодні") break;
     }
 
-    let subjRows = null;
+    // Шукаємо відділення та стовпчик групи
+    let targetRows = null;
     let groupCol = -1;
-    let startRow = -1;
+    let headers = [];
 
-    for (let deptRows of allDepartments) {
-      for (let i = 0; i < deptRows.length; i++) {
-        const columns = deptRows[i].split(",");
-        for (let j = 0; j < columns.length; j++) {
-          if (normalizeGroup(columns[j].replace(/"/g, "")) === userGroup) {
-            groupCol = j;
-            startRow = i + 1;
-            subjRows = deptRows;
+    for (let rows of allDepartments) {
+      if (!rows || rows.length < 3) continue;
+      for (let r = 0; r < Math.min(5, rows.length); r++) {
+        const cols = rows[r].split(",");
+        for (let c = 0; c < cols.length; c++) {
+          const cell = normalizeGroup(cols[c].replace(/"/g, "").trim());
+          if (cell === userGroup) {
+            groupCol = c;
+            targetRows = rows;
+            headers = cols;
             break;
           }
         }
@@ -163,45 +176,40 @@ module.exports = async (req, res) => {
       if (groupCol !== -1) break;
     }
 
-    if (groupCol === -1 || !subjRows) {
-      return res.json({ group: userGroup, date: targetDate, schedule: [] }); // Порожній розклад
+    if (groupCol === -1) {
+      return res.status(404).json({
+        error: `Групу ${userGroup} не знайдено в таблиці на цей день.`,
+      });
     }
 
-    // Завантажуємо аудиторії всіх груп (для перевірки спільних лекцій)
+    // Аудиторії
     const audByGroup = {};
-    for (let i = 0; i < audRows.length; i++) {
-      const columns = audRows[i].split(",");
-      if (columns[0]) {
-        const groupName = normalizeGroup(columns[0].replace(/"/g, ""));
-        audByGroup[groupName] = columns;
+    if (audRows && audRows.length > 0) {
+      for (let row of audRows) {
+        const cols = row.split(",");
+        const gName = normalizeGroup(cols[0].replace(/"/g, "").trim());
+        if (gName) {
+          audByGroup[gName] = cols.slice(1).map((c) => c.replace(/"/g, "").trim());
+        }
       }
     }
-    const audGroupRow = audByGroup[userGroup] || null;
+    const audGroupRow = audByGroup[userGroup] || [];
 
-    const headers = subjRows[startRow - 1].split(",");
-    const activeGroups = [];
-    for (let j = 1; j < headers.length; j++) {
-      if (headers[j].replace(/"/g, "").trim() !== "") activeGroups.push(j);
-    }
-
+    // Збираємо пари (1-6)
     const scheduleArray = [];
+    let currentPairScan = 1;
 
-    // Читаємо пари і складаємо їх у JSON масив
-    for (let i = startRow; i < subjRows.length; i++) {
-      const columns = subjRows[i].split(",");
-      const pairNum = columns[0].replace(/"/g, "").trim();
+    for (let i = 0; i < targetRows.length; i++) {
+      if (currentPairScan > 6) break;
+      const columns = targetRows[i].split(",");
+      const firstCol = columns[0].replace(/"/g, "").trim();
 
-      if (!["1", "2", "3", "4", "5", "6"].includes(pairNum)) {
-        if (pairNum === "") {
-          if (
-            columns.some(
-              (col, index) => index > 0 && col.replace(/"/g, "").trim() !== "",
-            )
-          )
-            break;
-          continue;
-        }
-        break;
+      let pairNum = "";
+      if (firstCol.includes(String(currentPairScan))) {
+        pairNum = String(currentPairScan);
+        currentPairScan++;
+      } else {
+        continue;
       }
 
       let lesson = columns[groupCol]
@@ -218,7 +226,6 @@ module.exports = async (req, res) => {
 
       if (lesson === "-") lesson = "";
       else if (lesson === "") {
-        // Якщо наша клітинка пуста — перевіряємо ТІЛЬКИ збіг аудиторій з сусідами ліворуч.
         const pairIndex = parseInt(pairNum, 10);
         const ourAudNormalized =
           !isNaN(pairIndex) && audGroupRow && audGroupRow[pairIndex]
@@ -247,63 +254,29 @@ module.exports = async (req, res) => {
               const leftAudienceNormalized = normalizeAud(
                 leftGroupAudRow[pairIndex],
               );
-
-              // Список слів-заглушок, які не можна вважати збігом аудиторії
-              const invalidAudiences = ["", "-", "НЕВКАЗАНО"];
-
               if (
-                !invalidAudiences.includes(ourAudNormalized) &&
-                !invalidAudiences.includes(leftAudienceNormalized) &&
-                ourAudNormalized === leftAudienceNormalized
+                leftAudienceNormalized !== "" &&
+                ourAudNormalized !== "" &&
+                leftAudienceNormalized === ourAudNormalized
               ) {
                 lesson = leftCell;
-                lessonType = "📢 Лекція";
+                lessonType = "🎓 Лекція (спільна)";
                 break;
               }
             }
           }
         }
-      } else {
-        // У нашій групі є предмет — перевіряємо аудиторію з правою групою
-        const ourIndex = activeGroups.indexOf(groupCol);
-        if (ourIndex !== -1 && ourIndex < activeGroups.length - 1) {
-          const nextCol = activeGroups[ourIndex + 1];
-          const pairIndex = parseInt(pairNum, 10);
-          const nextGroupName = normalizeGroup(
-            headers[nextCol].replace(/"/g, "").trim(),
-          );
-          const nextGroupAudRow = audByGroup[nextGroupName];
-
-          const ourAudNormalized =
-            !isNaN(pairIndex) && audGroupRow && audGroupRow[pairIndex]
-              ? normalizeAud(audGroupRow[pairIndex])
-              : "";
-          const nextAudNormalized =
-            !isNaN(pairIndex) && nextGroupAudRow && nextGroupAudRow[pairIndex]
-              ? normalizeAud(nextGroupAudRow[pairIndex])
-              : "";
-
-          const invalidAudiences = ["", "-", "НЕВКАЗАНО"];
-
-          if (
-            !invalidAudiences.includes(ourAudNormalized) &&
-            !invalidAudiences.includes(nextAudNormalized) &&
-            ourAudNormalized === nextAudNormalized
-          ) {
-            lessonType = "📢 Лекція";
-          }
-        }
       }
 
       let audience = "Не вказано";
-      if (lesson !== "" && audGroupRow) {
+      if (lesson !== "") {
         const pairIndex = parseInt(pairNum, 10);
-        if (!isNaN(pairIndex) && audGroupRow[pairIndex])
+        if (!isNaN(pairIndex) && audGroupRow[pairIndex]) {
           audience = audGroupRow[pairIndex].replace(/"/g, "").trim();
+        }
       }
       if (audience === "" || audience === "-") audience = "Не вказано";
 
-      // Додаємо інформацію про пару в масив
       scheduleArray.push({
         pair: pairNum,
         time: timeMap[pairNum] || "",
@@ -313,9 +286,27 @@ module.exports = async (req, res) => {
       });
     }
 
-    res.json({ group: userGroup, date: targetDate, schedule: scheduleArray });
+    const unifiedPairs = scheduleArray.map((p) => ({
+      number: p.pair,
+      pair: p.pair,
+      time: p.time,
+      name: p.name,
+      subject: p.name,
+      type: p.type,
+      aud: p.aud,
+      room: p.aud,
+      teacher: p.teacher || "За розкладом",
+    }));
+
+    return res.json({
+      group: userGroup,
+      date: targetDate,
+      scheduleDate: targetDate,
+      schedule: scheduleArray,
+      pairs: unifiedPairs,
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Помилка сервера" });
+    console.error("Помилка get-schedule:", error);
+    res.status(500).json({ error: "Помилка завантаження розкладу з сервера" });
   }
 };
