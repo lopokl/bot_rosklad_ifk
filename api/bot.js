@@ -42,7 +42,7 @@ bot.use(async (ctx, next) => {
   return next();
 });
 
-const { sheetsConfig, timeMap } = require("./config");
+const { sheetsConfig, timeMap } = require("../lib/config");
 
 // ==========================================
 // ФУНКЦІЯ ДЛЯ ЗАВАНТАЖЕННЯ ДАНИХ З ТАБЛИЦІ

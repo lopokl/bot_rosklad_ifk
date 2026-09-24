@@ -1,7 +1,7 @@
 const { kv } = require("@vercel/kv");
 
 // Наші налаштування (такі ж як у бота)
-const { sheetsConfig, timeMap } = require("./config");
+const { sheetsConfig, timeMap } = require("../lib/config");
 
 // ==========================================
 // ФУНКЦІЯ ДЛЯ ЗАВАНТАЖЕННЯ ДАНИХ (З Кешуванням)

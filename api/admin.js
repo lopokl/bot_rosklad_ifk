@@ -104,7 +104,7 @@ module.exports = async (req, res) => {
 
       // ДІЯ: ПЕРЕВІРКА ОНОВЛЕНЬ РОЗКЛАДУ
       if (action === "check_updates") {
-        const { checkForScheduleUpdates } = require("./schedule-helper");
+        const { checkForScheduleUpdates } = require("../lib/schedule-helper");
         const updates = await checkForScheduleUpdates();
         if (!updates || updates.length === 0) {
           return res.json({

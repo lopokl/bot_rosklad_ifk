@@ -1,7 +1,7 @@
-const { enableCors, sendSuccess, sendError, isCronAuthorized, isAdmin } = require("./http-helper");
-const { checkForScheduleUpdates } = require("./schedule-helper");
-const { broadcastToAll } = require("./notifier-service");
-const { addRecentLog } = require("./user-service");
+const { enableCors, sendSuccess, sendError, isCronAuthorized, isAdmin } = require("../lib/http-helper");
+const { checkForScheduleUpdates } = require("../lib/schedule-helper");
+const { broadcastToAll } = require("../lib/notifier-service");
+const { addRecentLog } = require("../lib/user-service");
 
 module.exports = async (req, res) => {
   if (enableCors(req, res)) return;

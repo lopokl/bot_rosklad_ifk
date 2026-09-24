@@ -1,4 +1,4 @@
-const { groupsList } = require("./config");
+const { groupsList } = require("../lib/config");
 
 module.exports = async (req, res) => {
   // Дозволяємо запити з браузера
