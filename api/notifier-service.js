@@ -1,0 +1,6 @@
+const { Telegraf } = require("telegraf");
+const { getAllUserIds, getActiveChats, getUserNotif, addRecentLog } = require("./user-service");
+const bot = new Telegraf(process.env.BOT_TOKEN);
+async function broadcastToAll({ text, extra = {}, onlySubscribed = true, includeChats = true, logTitle = "Розсилка" }) { let userCount = 0; let chatCount = 0; if (includeChats) { const activeChats = await getActiveChats(); for (const chatId of activeChats) { try { await bot.telegram.sendMessage(chatId, text, extra); chatCount++; } catch (e) {} } } const userIds = await getAllUserIds(); for (const userId of userIds) { try { if (onlySubscribed) { const wantsNotif = await getUserNotif(userId); if (!wantsNotif) continue; } await bot.telegram.sendMessage(userId, text, extra); userCount++; } catch (e) {} } const total = userCount + chatCount; if (logTitle) { await addRecentLog(`${logTitle} | Надіслано: ${total} (студентів: ${userCount}, чатів: ${chatCount})`); } return { total, userCount, chatCount }; }
+async function sendDirectMessage(targetId, text, extra = {}) { return await bot.telegram.sendMessage(targetId, text, extra); }
+module.exports = { bot, broadcastToAll, sendDirectMessage };

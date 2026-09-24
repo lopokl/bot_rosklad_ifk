@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Налаштування</title>
+        <title>Nalashtuvannya</title>
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <script src="https://cdn.tailwindcss.com"></script>
         <style>
@@ -14,80 +14,24 @@
             .tg-card {
                 background-color: var(--tg-theme-secondary-bg-color, #ffffff);
             }
-
-            /* Стиль для красивого тумблера */
-            .toggle-checkbox:checked {
-                right: 0;
-                border-color: #3b82f6;
-            }
-            .toggle-checkbox:checked + .toggle-label {
-                background-color: #3b82f6;
-            }
-            .toggle-checkbox {
-                right: 4px;
-                z-index: 1;
-                border-color: #e5e7eb;
-                transition: all 0.3s;
-            }
-            .toggle-label {
-                width: 3rem;
-                height: 1.5rem;
-                background-color: #e5e7eb;
-                border-radius: 9999px;
-                transition: all 0.3s;
-            }
         </style>
     </head>
     <body class="p-5 antialiased transition-colors duration-300">
         <div class="max-w-md mx-auto">
             <h1 class="text-2xl font-extrabold mb-6">⚙️ Налаштування</h1>
 
-            <div
-                class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 mb-4 flex justify-between items-center"
-            >
+            <div class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 mb-4 flex justify-between items-center">
                 <div>
-                    <p class="text-xs font-bold uppercase opacity-60">
-                        Поточна група
-                    </p>
-                    <p class="text-lg font-bold" id="groupName">
-                        Завантаження...
-                    </p>
+                    <p class="text-xs font-bold uppercase opacity-60">Поточна група</p>
+                    <p class="text-lg font-bold" id="groupName">Завантаження...</p>
                 </div>
             </div>
 
-            <div
-                class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 flex justify-between items-center"
-            >
-                <div>
-                    <p class="font-bold text-lg">🔔 Ранковий розклад</p>
-                    <p class="text-sm opacity-60">Отримувати розклад о 07:30</p>
-                </div>
+            <p class="text-center text-xs opacity-50 mt-4" id="saveStatus"></p>
 
-                <div
-                    class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in"
-                >
-                    <input
-                        type="checkbox"
-                        name="toggle"
-                        id="notifToggle"
-                        class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
-                        onchange="saveSettings()"
-                    />
-                    <label
-                        for="notifToggle"
-                        class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
-                    ></label>
-                </div>
-            </div>
-
-            <p class="text-center text-xs opacity-50 mt-6" id="saveStatus"></p>
-            <div
-                class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 mt-4"
-            >
+            <div class="tg-card p-4 rounded-2xl shadow-sm border border-gray-500/10 mt-4">
                 <p class="font-bold mb-2 text-lg">✉️ Написати Адміну</p>
-                <p class="text-xs opacity-60 mb-3">
-                    Знайшли помилку в розкладі? Напишіть нам!
-                </p>
+                <p class="text-xs opacity-60 mb-3">Знайшли помилку в розкладі? Напишіть нам!</p>
 
                 <textarea
                     id="feedbackMsg"
@@ -99,7 +43,7 @@
                 <button
                     id="feedbackBtn"
                     onclick="sendFeedback()"
-                    class="tg-btn w-full py-2.5 rounded-xl font-bold shadow-md text-sm transition-opacity"
+                    class="w-full py-2.5 rounded-xl font-bold shadow-md text-sm bg-blue-600 hover:bg-blue-700 text-white transition-opacity"
                 >
                     Відправити
                 </button>
@@ -113,44 +57,16 @@
 
             const userId = tg.initDataUnsafe?.user?.id || "0";
 
-            // Завантажуємо налаштування при відкритті
             async function loadSettings() {
                 try {
                     const res = await fetch(`/api/settings?userId=${userId}`);
                     const data = await res.json();
-
-                    document.getElementById("groupName").innerText = data.group;
-                    document.getElementById("notifToggle").checked =
-                        data.notifications;
+                    document.getElementById("groupName").innerText = data.group || "Не обрано";
                 } catch (e) {
                     document.getElementById("groupName").innerText = "Помилка";
                 }
             }
 
-            // Зберігаємо, коли користувач клацає тумблер
-            async function saveSettings() {
-                const isChecked =
-                    document.getElementById("notifToggle").checked;
-                const statusText = document.getElementById("saveStatus");
-                statusText.innerText = "Збереження...";
-
-                try {
-                    await fetch("/api/settings", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            userId: userId,
-                            notifications: isChecked,
-                        }),
-                    });
-                    statusText.innerText = "✅ Збережено";
-                    setTimeout(() => (statusText.innerText = ""), 2000);
-                } catch (e) {
-                    statusText.innerText = "❌ Помилка збереження";
-                }
-            }
-
-            // Відправляємо відгук адміну
             async function sendFeedback() {
                 const msg = document.getElementById("feedbackMsg").value;
                 const btn = document.getElementById("feedbackBtn");
@@ -173,14 +89,14 @@
                     });
 
                     if (response.ok) {
-                        statusText.innerText = "✅ Відгук надіслано адміну!";
+                        statusText.innerText = "✅ Відгук��A�слано адміну!";
                         document.getElementById("feedbackMsg").value = "";
                         setTimeout(() => (statusText.innerText = ""), 3000);
                     } else {
                         statusText.innerText = "❌ Помилка відправки";
                     }
                 } catch (e) {
-                    statusText.innerText = "❌ Помилка з'єднання";
+                    statusText.innerText = "❌ Помилка з'єєднання";
                 } finally {
                     btn.disabled = false;
                     btn.innerText = "Відправити";

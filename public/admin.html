@@ -13,23 +13,12 @@
                 color: var(--tg-theme-text-color, #ffffff);
             }
             .tg-card {
-                background-color: var(--tg-theme-secondary-bg-color, #374151);
+                background-color: var(--tg-theme-secondary-bg-color, #111827);
+                border: 1px solid rgba(255, 255, 255, 0.05);
             }
             .tg-btn {
                 background-color: var(--tg-theme-button-color, #3b82f6);
                 color: var(--tg-theme-button-text-color, #ffffff);
-            }
-            .pulse {
-                animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-            }
-            @keyframes pulse {
-                0%,
-                100% {
-                    opacity: 1;
-                }
-                50% {
-                    opacity: 0.5;
-                }
             }
             .custom-scroll::-webkit-scrollbar {
                 width: 4px;
@@ -38,18 +27,31 @@
                 background: rgba(255, 255, 255, 0.2);
                 border-radius: 4px;
             }
+            @keyframes pulse-anim {
+                0%,
+                100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.4;
+                }
+            }
+            .pulse {
+                animation: pulse-anim 1.5s infinite ease-in-out;
+            }
             .toggle-checkbox:checked {
-                right: 0;
+                transform: translateX(100%);
                 border-color: #ef4444;
             }
             .toggle-checkbox:checked + .toggle-label {
                 background-color: #ef4444;
             }
             .toggle-checkbox-green:checked {
-                border-color: #22c55e;
+                transform: translateX(100%);
+                border-color: #10b981 !important;
             }
             .toggle-checkbox-green:checked + .toggle-label {
-                background-color: #22c55e;
+                background-color: #10b981 !important;
             }
         </style>
     </head>
@@ -58,11 +60,9 @@
             <h1 class="text-2xl font-extrabold mb-2 text-red-500">
                 👑 Панель Адміна
             </h1>
-            <p class="text-sm opacity-70 mb-6">Аналітика та керування ботом.</p>
+            <p class="text-sm opacity-70 mb-6">Аналітика, моніторинг та керування розкладом.</p>
 
-            <h2
-                class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
-            >
+            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
                 📈 Аналітика
             </h2>
             <div class="grid grid-cols-2 gap-3 mb-3">
@@ -73,58 +73,39 @@
                     </p>
                 </div>
                 <div class="tg-card p-4 rounded-2xl shadow-sm text-center">
-                    <p class="text-xs opacity-70 mb-1">Будильник ON</p>
-                    <p
-                        class="text-3xl font-black text-green-400"
-                        id="statNotif"
-                    >
+                    <p class="text-xs opacity-70 mb-1">Груп студентів</p>
+                    <p class="text-3xl font-black text-green-400" id="statGroupsCount">
                         ...
                     </p>
                 </div>
             </div>
 
-            <h2
-                class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
-            >
+            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
                 📚 Статистика по групах
             </h2>
-            <div
-                class="tg-card p-4 rounded-2xl shadow-sm mb-6 max-h-48 overflow-y-auto custom-scroll"
-            >
-                <div
-                    id="statGroups"
-                    class="text-sm font-medium space-y-2 pulse"
-                >
+            <div class="tg-card p-4 rounded-2xl shadow-sm mb-6 max-h-48 overflow-y-auto custom-scroll">
+                <div id="statGroups" class="text-sm font-medium space-y-2 pulse">
                     Завантаження...
                 </div>
             </div>
 
-            <h2
-                class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
-            >
+            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
                 📊 Відвідуваність (7 днів)
             </h2>
             <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
                 <canvas id="activityChart" height="200"></canvas>
             </div>
 
-            <h2
-                class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
-            >
+            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
                 🕵️ Хто відкривав бота
             </h2>
             <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
-                <div
-                    id="recentLogs"
-                    class="text-[11px] font-mono opacity-80 space-y-1 max-h-40 overflow-y-auto custom-scroll"
-                >
+                <div id="recentLogs" class="text-[11px] font-mono opacity-80 space-y-1 max-h-40 overflow-y-auto custom-scroll">
                     ⏳ Завантаження логів...
                 </div>
             </div>
 
-            <h2
-                class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
-            >
+            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
                 🔍 Пошук студента
             </h2>
             <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
@@ -135,77 +116,49 @@
                         placeholder="Введіть Telegram ID..."
                         class="w-full p-3 rounded-xl bg-black/20 border border-gray-500/30 outline-none focus:border-blue-500 text-sm"
                     />
-                    <button
-                        onclick="lookupUser()"
-                        class="tg-btn px-4 rounded-xl font-bold shadow-md"
-                    >
+                    <button onclick="lookupUser()" class="tg-btn px-4 rounded-xl font-bold shadow-md">
                         Знайти
                     </button>
                 </div>
-                <div
-                    id="lookupResult"
-                    class="text-sm bg-black/10 p-3 rounded-xl hidden border border-gray-500/10"
-                ></div>
+                <div id="lookupResult" class="text-sm bg-black/10 p-3 rounded-xl hidden border border-gray-500/10"></div>
             </div>
 
-            <h2
-                class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
-            >
+            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
                 📱 Керування Міні-додатком
             </h2>
             <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
-                <div
-                    class="flex items-center justify-between mb-4 pb-4 border-b border-gray-500/20"
-                >
+                <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-500/20">
                     <div>
-                        <p class="font-bold text-sm text-red-400">
-                            Технічні роботи 🛠
-                        </p>
+                        <p class="font-bold text-sm text-red-400">Технічні роботи 🛠</p>
                         <p class="text-xs opacity-60">Вимкнути розклад</p>
                     </div>
-                    <div
-                        class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in"
-                    >
+                    <div class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
                         <input
                             type="checkbox"
                             id="maintenanceToggle"
                             class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer z-10 transition-transform duration-200 ease-in-out"
                         />
-                        <label
-                            for="maintenanceToggle"
-                            class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-500/50 cursor-pointer"
-                        ></label>
+                        <label for="maintenanceToggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-500/50 cursor-pointer"></label>
                     </div>
                 </div>
-                <div
-                    class="flex items-center justify-between mb-4 pb-4 border-b border-gray-500/20"
-                >
+
+                <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-500/20">
                     <div>
-                        <p class="font-bold text-sm text-green-400">
-                            Режим канікул 🌴
-                        </p>
-                        <p class="text-xs opacity-60">
-                            Увімкнути екран відпочинку
-                        </p>
+                        <p class="font-bold text-sm text-green-400">Режим канікул 🌴</p>
+                        <p class="text-xs opacity-60">Увімкнути екран відпочинку</p>
                     </div>
-                    <div
-                        class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in"
-                    >
+                    <div class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
                         <input
                             type="checkbox"
                             id="vacationToggle"
                             class="toggle-checkbox toggle-checkbox-green absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer z-10 transition-transform duration-200 ease-in-out"
                         />
-                        <label
-                            for="vacationToggle"
-                            class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-500/50 cursor-pointer"
-                        ></label>
+                        <label for="vacationToggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-500/50 cursor-pointer"></label>
                     </div>
                 </div>
+
                 <div>
-                    <p class="font-bold text-sm mb-1 text-yellow-400">
-                        Глобальний банер
-                    </p>
+                    <p class="font-bold text-sm mb-1 text-yellow-400">Глобальний банер</p>
                     <input
                         type="text"
                         id="bannerInput"
@@ -222,14 +175,27 @@
                 </button>
             </div>
 
-            <h2
-                class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
-            >
+            <!-- МОНІТОРИНГ РОЗКЛАДУ -->
+            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
+                🔄 Автоматична перевірка розкладу
+            </h2>
+            <div class="tg-card p-4 rounded-2xl shadow-sm mb-6">
+                <div class="flex justify-between items-center mb-3">
+                    <div>
+                        <p class="font-bold text-sm">Новий розклад у Google Таблицях</p>
+                        <p class="text-xs opacity-60">Перевірити, чи диспетчер оновив дати пар</p>
+                    </div>
+                    <button id="checkUpdatesBtn" onclick="checkScheduleUpdates()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-md text-sm whitespace-nowrap">
+                        🔍 Перевірити
+                    </button>
+                </div>
+                <div id="checkUpdatesStatus" class="text-xs text-blue-400 mt-2 font-medium"></div>
+            </div>
+
+            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
                 ⚙️ Керування сервером
             </h2>
-            <div
-                class="tg-card p-4 rounded-2xl shadow-sm mb-6 flex justify-between items-center"
-            >
+            <div class="tg-card p-4 rounded-2xl shadow-sm mb-6 flex justify-between items-center">
                 <div>
                     <p class="font-bold text-sm">Кеш розкладу</p>
                     <p class="text-xs opacity-60">Очистити пам'ять таблиць</p>
@@ -243,9 +209,7 @@
                 </button>
             </div>
 
-            <h2
-                class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60"
-            >
+            <h2 class="font-bold mb-3 uppercase tracking-wider text-xs opacity-60">
                 ✉️ Повідомлення
             </h2>
             <div class="tg-card p-4 rounded-2xl shadow-sm mb-4">
@@ -264,18 +228,17 @@
                 </button>
             </div>
 
-            <div
-                id="status"
-                class="text-center font-bold text-sm mb-6 h-6"
-            ></div>
+            <div id="status" class="text-center font-bold text-sm mb-6 h-6"></div>
         </div>
 
         <script>
-            const tg = window.Telegram.WebApp;
-            tg.expand();
-            tg.ready();
+            const tg = window.Telegram?.WebApp;
+            if (tg) {
+                tg.expand();
+                tg.ready();
+            }
 
-            const adminId = tg.initDataUnsafe?.user?.id;
+            const adminId = tg?.initDataUnsafe?.user?.id || new URLSearchParams(window.location.search).get("userId");
             let chartInstance = null;
 
             function showStatus(html) {
@@ -291,15 +254,12 @@
                     const data = await res.json();
 
                     if (data.error) {
-                        document.getElementById("statGroups").innerHTML =
-                            `<span class="text-red-500">${data.error}</span>`;
+                        document.getElementById("statGroups").innerHTML = `<span class="text-red-500">${data.error}</span>`;
                         return;
                     }
 
-                    document.getElementById("statUsers").innerText =
-                        data.totalUsers || 0;
-                    document.getElementById("statNotif").innerText =
-                        data.notifOnCount || 0;
+                    document.getElementById("statUsers").innerText = data.totalUsers || 0;
+                    document.getElementById("statGroupsCount").innerText = data.activeGroupsCount || (data.allGroups ? data.allGroups.length : 0);
 
                     const groupsBox = document.getElementById("statGroups");
                     groupsBox.classList.remove("pulse");
@@ -314,8 +274,7 @@
                             })
                             .join("");
                     } else {
-                        groupsBox.innerHTML =
-                            "<p class='opacity-50'>Немає даних</p>";
+                        groupsBox.innerHTML = "<p class='opacity-50'>Немає даних</p>";
                     }
 
                     const logsBox = document.getElementById("recentLogs");
@@ -330,17 +289,12 @@
                     }
 
                     if (data.appConfig) {
-                        document.getElementById("maintenanceToggle").checked =
-                            data.appConfig.maintenance || false;
-                        document.getElementById("vacationToggle").checked =
-                            data.appConfig.vacation || false;
-                        document.getElementById("bannerInput").value =
-                            data.appConfig.banner || "";
+                        document.getElementById("maintenanceToggle").checked = data.appConfig.maintenance || false;
+                        document.getElementById("vacationToggle").checked = data.appConfig.vacation || false;
+                        document.getElementById("bannerInput").value = data.appConfig.banner || "";
                     }
 
-                    const ctx = document
-                        .getElementById("activityChart")
-                        .getContext("2d");
+                    const ctx = document.getElementById("activityChart").getContext("2d");
                     if (chartInstance) chartInstance.destroy();
                     chartInstance = new Chart(ctx, {
                         type: "line",
@@ -380,16 +334,42 @@
                 }
             }
 
+            async function checkScheduleUpdates() {
+                const btn = document.getElementById("checkUpdatesBtn");
+                const statusBox = document.getElementById("checkUpdatesStatus");
+                btn.disabled = true;
+                btn.innerText = "⏳ Перевірка...";
+                statusBox.innerText = "Зчитуємо свіжі дані з Google Таблиць...";
+
+                try {
+                    const res = await fetch("/api/admin", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ userId: adminId, action: "check_updates" }),
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        statusBox.innerHTML = `✅ ${data.message || "Перевірено"}`;
+                        if (data.updates && data.updates.length > 0) {
+                            showStatus(`<span class="text-green-400 font-bold">Знайдено оновлень: ${data.updates.length}!</span>`);
+                        }
+                    } else {
+                        statusBox.innerHTML = `❌ Помилка: ${data.error || "Збій"}`;
+                    }
+                } catch (e) {
+                    statusBox.innerHTML = "❌ Помилка зв'язку з сервером";
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = "🔍 Перевірити";
+                }
+            }
+
             async function saveAppConfig() {
                 const btn = document.getElementById("saveConfigBtn");
                 if (!adminId) return;
-                const isMaintenance =
-                    document.getElementById("maintenanceToggle").checked;
-                const isVacation =
-                    document.getElementById("vacationToggle").checked;
-                const bannerText = document
-                    .getElementById("bannerInput")
-                    .value.trim();
+                const isMaintenance = document.getElementById("maintenanceToggle").checked;
+                const isVacation = document.getElementById("vacationToggle").checked;
+                const bannerText = document.getElementById("bannerInput").value.trim();
 
                 btn.disabled = true;
                 btn.innerText = "⏳ Збереження...";
@@ -410,17 +390,11 @@
                     });
                     const data = await response.json();
                     if (data.error)
-                        showStatus(
-                            `<span class="text-red-500">❌ ${data.error}</span>`,
-                        );
+                        showStatus(`<span class="text-red-500">❌ ${data.error}</span>`);
                     else
-                        showStatus(
-                            `<span class="text-green-500">${data.message}</span>`,
-                        );
+                        showStatus(`<span class="text-green-500">${data.message}</span>`);
                 } catch (err) {
-                    showStatus(
-                        `<span class="text-red-500">❌ Помилка з'єднання</span>`,
-                    );
+                    showStatus(`<span class="text-red-500">❌ Помилка з'єднання</span>`);
                 } finally {
                     btn.disabled = false;
                     btn.innerText = "💾 Зберегти налаштування";
@@ -429,9 +403,7 @@
             }
 
             async function lookupUser() {
-                const targetId = document
-                    .getElementById("lookupIdInput")
-                    .value.trim();
+                const targetId = document.getElementById("lookupIdInput").value.trim();
                 const resultBox = document.getElementById("lookupResult");
                 if (!targetId) return;
 
@@ -482,13 +454,9 @@
                     });
                     const data = await response.json();
                     if (data.error)
-                        showStatus(
-                            `<span class="text-red-500">❌ ${data.error}</span>`,
-                        );
+                        showStatus(`<span class="text-red-500">❌ ${data.error}</span>`);
                     else
-                        showStatus(
-                            `<span class="text-green-500">${data.message}</span>`,
-                        );
+                        showStatus(`<span class="text-green-500">${data.message}</span>`);
                 } catch (err) {
                     showStatus(`<span class="text-red-500">❌ Помилка</span>`);
                 } finally {
@@ -502,7 +470,8 @@
                 const msg = document.getElementById("broadcastMsg").value;
                 const btn = document.getElementById("sendBtn");
                 if (!msg.trim()) {
-                    tg.showAlert("Введіть текст!");
+                    if (tg?.showAlert) tg.showAlert("Введіть текст!");
+                    else alert("Введіть текст!");
                     return;
                 }
                 if (!adminId) {
@@ -511,7 +480,7 @@
                 }
 
                 btn.disabled = true;
-                btn.innerText = "⏳...";
+                btn.innerText = "⏳ Відправка...";
                 btn.classList.add("opacity-50");
                 try {
                     const response = await fetch("/api/admin", {

@@ -21,22 +21,16 @@ module.exports = async (req, res) => {
 
       let [, keys] = await kv.scan(0, { match: "user_*", count: 2000 });
       let totalUsers = 0,
-        notifOffCount = 0,
         groupCounts = {};
 
       for (let key of keys) {
-        if (key.includes("_notif")) {
-          const val = await kv.get(key);
-          if (val === false) notifOffCount++;
-          continue;
-        }
-        if (key.includes("_pinned")) continue;
+        if (key.includes("_notif") || key.includes("_pinned")) continue;
         totalUsers++;
         const group = await kv.get(key);
         if (group) groupCounts[group] = (groupCounts[group] || 0) + 1;
       }
 
-      const notifOnCount = totalUsers - notifOffCount;
+      const activeGroupsCount = Object.keys(groupCounts).length;
       const allGroups = Object.entries(groupCounts)
         .sort((a, b) => b[1] - a[1])
         .map((entry) => `${entry[0]} — ${entry[1]} студ.`);
@@ -63,8 +57,7 @@ module.exports = async (req, res) => {
 
       return res.json({
         totalUsers,
-        notifOnCount,
-        notifOffCount,
+        activeGroupsCount,
         allGroups,
         chartLabels,
         chartData,
@@ -106,6 +99,24 @@ module.exports = async (req, res) => {
           success: true,
           count: successCount,
           message: `✅ Відправлено ${successCount} юзерам!`,
+        });
+      }
+
+      // ДІЯ: ПЕРЕВІРКА ОНОВЛЕНЬ РОЗКЛАДУ
+      if (action === "check_updates") {
+        const { checkForScheduleUpdates } = require("./schedule-helper");
+        const updates = await checkForScheduleUpdates();
+        if (!updates || updates.length === 0) {
+          return res.json({
+            success: true,
+            updates: [],
+            message: "Оновлень не знайдено, розклад актуальний.",
+          });
+        }
+        return res.json({
+          success: true,
+          updates,
+          message: `Знайдено оновлень дат розкладу: ${updates.length}`,
         });
       }
 
