@@ -1,12 +1,7 @@
-﻿/**
- * Спільні HTTP та CORS утиліти для Vercel Serverless Functions
- */
-
-function enableCors(req, res) {
+﻿function enableCors(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
 
   if (req.method === "OPTIONS") {
     res.status(200).end();
@@ -15,8 +10,10 @@ function enableCors(req, res) {
   return false;
 }
 
-function sendError(res, statusCode = 500, message = "Помилка сервера") {
-  return res.status(statusCode).json({ error: message });
+function sendError(res, statusCode, message, details = null) {
+  const payload = { error: message };
+  if (details) payload.details = details;
+  return res.status(statusCode).json(payload);
 }
 
 function sendSuccess(res, data = {}) {
@@ -34,7 +31,8 @@ function isCronAuthorized(req) {
   const secret = process.env.CRON_SECRET;
   if (!secret) return true;
   const authHeader = req.headers?.authorization;
-  const querySecret = req.query?.secret || req.body?.secret;
+  const querySecret =
+    req.query?.secret || req.query?.key || req.body?.secret || req.body?.key;
   return authHeader === `Bearer ${secret}` || querySecret === secret;
 }
 
