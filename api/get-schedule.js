@@ -61,15 +61,9 @@ function cleanGroupName(str) {
     .trim();
 }
 
-function normalizeAud(aud) {
-  if (!aud) return "";
-  return aud
-    .replace(/["\s]/g, "")
-    .replace(/[a-zA-Z]/g, (char) => {
-      const map = { a: "а", b: "б", c: "с", e: "е", i: "і", k: "к", m: "м", o: "о", p: "р", t: "т", x: "х" };
-      return map[char.toLowerCase()] || char;
-    })
-    .toLowerCase();
+function getGroupSpecialty(cleanName) {
+  const m = cleanName.match(/[А-ЯІЇЄҐ]+$/);
+  return m ? m[0] : "";
 }
 
 module.exports = async (req, res) => {
@@ -137,6 +131,7 @@ module.exports = async (req, res) => {
     }
 
     const cleanTargetGroup = cleanGroupName(rawUserGroup);
+    const targetSpec = getGroupSpecialty(cleanTargetGroup);
 
     const sheetId = sheetsConfig[dayKey].id;
     const [itRows, finRows, entRows, audRows] = await Promise.all([
@@ -180,7 +175,6 @@ module.exports = async (req, res) => {
     let targetRows = null;
     let groupCol = -1;
     let headerRowIdx = -1;
-    let headers = [];
 
     for (let rows of allDepartments) {
       if (!rows || rows.length < 3) continue;
@@ -192,7 +186,6 @@ module.exports = async (req, res) => {
             groupCol = c;
             headerRowIdx = r;
             targetRows = rows;
-            headers = cols;
             break;
           }
         }
@@ -207,6 +200,30 @@ module.exports = async (req, res) => {
       });
     }
 
+    // Визначаємо всі активні групи курсу на цьому рядку заголовка
+    const headerCols = targetRows[headerRowIdx].split(",");
+    const activeGroups = [];
+    for (let c = 1; c < headerCols.length; c++) {
+      const gClean = cleanGroupName(headerCols[c].replace(/"/g, ""));
+      if (gClean && /\d{3}/.test(gClean)) {
+        activeGroups.push({
+          col: c,
+          name: gClean,
+          spec: getGroupSpecialty(gClean),
+        });
+      }
+    }
+
+    const ourIdxInActive = activeGroups.findIndex((g) => g.col === groupCol);
+    const ignoredSubjects = [
+      "Іноземна",
+      "Фізична культура",
+      "Англ",
+      "Виховна",
+      "Навчальна",
+      "Фізвиховання",
+    ];
+
     // Збираємо пари (1-6) ПОЧИНАЮЧИ ВІД ЗАГОЛОВКА КУРСУ
     const scheduleArray = [];
     let currentPairScan = 1;
@@ -217,79 +234,105 @@ module.exports = async (req, res) => {
       const firstCol = columns[0].replace(/"/g, "").trim();
 
       // Якщо натрапили на інший курс або підвал
-      if (firstCol.toLowerCase().includes("навчальна") || (!firstCol.includes(String(currentPairScan)) && columns.some((c, idx) => idx > 0 && /\d{3}/.test(c)))) {
+      if (
+        firstCol.toLowerCase().includes("навчальна") ||
+        (!firstCol.includes(String(currentPairScan)) &&
+          columns.some((c, idx) => idx > 0 && /\d{3}/.test(c)))
+      ) {
         break;
       }
 
-      let pairNum = "";
-      if (firstCol.includes(String(currentPairScan))) {
-        pairNum = String(currentPairScan);
-        currentPairScan++;
-      } else {
+      if (!firstCol.includes(String(currentPairScan))) {
         continue;
       }
+
+      const pairNum = String(currentPairScan);
+      currentPairScan++;
 
       let lesson = columns[groupCol]
         ? columns[groupCol].replace(/"/g, "").trim()
         : "";
       let lessonType = "🧩 Практика";
-      const ignoredSubjects = [
-        "Іноземна",
-        "Фізична культура",
-        "Англ",
-        "Виховна",
-        "Навчальна",
-      ];
+      let isLecture = false;
+      let leftGroupUsed = null;
 
-      if (lesson === "-") lesson = "";
-      else if (lesson === "") {
-        const pairIndex = parseInt(pairNum, 10);
-        const ourAudNormalized =
-          !isNaN(pairIndex) && audGroupRow && audGroupRow[pairIndex]
-            ? normalizeAud(audGroupRow[pairIndex])
-            : "";
+      if (lesson === "-") {
+        lesson = "";
+      } else if (lesson === "") {
+        // Клітинка порожня: перевіряємо чи є спільна лекція ліворуч (merged cell)
+        for (let k = ourIdxInActive - 1; k >= 0; k--) {
+          const leftGrp = activeGroups[k];
+          const isSameStream =
+            !targetSpec ||
+            !leftGrp.spec ||
+            targetSpec === leftGrp.spec ||
+            activeGroups.length <= 2;
 
-        for (let k = groupCol - 1; k >= 1; k--) {
-          const leftCell = columns[k]
-            ? columns[k].replace(/"/g, "").trim()
-            : "";
-          if (
-            leftCell !== "" &&
-            leftCell !== "-" &&
-            !ignoredSubjects.some((w) => leftCell.includes(w))
-          ) {
-            const leftGroupName = cleanGroupName(
-              headers[k].replace(/"/g, ""),
-            );
-            const leftGroupAudRow = audByGroup[leftGroupName];
+          if (isSameStream) {
+            const leftCell = columns[leftGrp.col]
+              ? columns[leftGrp.col].replace(/"/g, "").trim()
+              : "";
+            const isIgnored = ignoredSubjects.some((w) => leftCell.includes(w));
+            if (leftCell !== "" && leftCell !== "-" && !isIgnored) {
+              lesson = leftCell;
+              lessonType = "📢 Лекція";
+              isLecture = true;
+              leftGroupUsed = leftGrp;
+              break;
+            }
+          }
+        }
+      } else {
+        // Клітинка заповнена: перевіряємо, чи це лекція для нашої групи і груп праворуч
+        const isIgnored = ignoredSubjects.some((w) => lesson.includes(w));
+        if (!isIgnored) {
+          if (/лекц/i.test(lesson)) {
+            lessonType = "📢 Лекція";
+            isLecture = true;
+          } else {
+            for (let k = ourIdxInActive + 1; k < activeGroups.length; k++) {
+              const rightGrp = activeGroups[k];
+              const isSameStream =
+                !targetSpec ||
+                !rightGrp.spec ||
+                targetSpec === rightGrp.spec ||
+                activeGroups.length <= 2;
 
-            if (
-              leftGroupAudRow &&
-              !isNaN(pairIndex) &&
-              leftGroupAudRow[pairIndex]
-            ) {
-              const leftAudienceNormalized = normalizeAud(
-                leftGroupAudRow[pairIndex],
-              );
-              if (
-                leftAudienceNormalized !== "" &&
-                ourAudNormalized !== "" &&
-                leftAudienceNormalized === ourAudNormalized
-              ) {
-                lesson = leftCell;
-                lessonType = "🎓 Лекція (спільна)";
-                break;
+              if (isSameStream) {
+                const rightCell = columns[rightGrp.col]
+                  ? columns[rightGrp.col].replace(/"/g, "").trim()
+                  : "";
+                if (rightCell === "" || rightCell === "-") {
+                  lessonType = "📢 Лекція";
+                  isLecture = true;
+                  break;
+                }
               }
             }
           }
         }
+        if (/підгруп|і п|іі п/i.test(lesson)) {
+          lessonType = "👥 Підгрупи";
+        }
       }
 
+      // Визначаємо аудиторію
       let audience = "Не вказано";
+      const pairIndex = parseInt(pairNum, 10);
       if (lesson !== "") {
-        const pairIndex = parseInt(pairNum, 10);
         if (!isNaN(pairIndex) && audGroupRow[pairIndex]) {
           audience = audGroupRow[pairIndex].replace(/"/g, "").trim();
+        }
+        // Якщо у нас аудиторія порожня, а це спільна лекція — підтягуємо аудиторію групи, де записана лекція
+        if (
+          (audience === "" || audience === "-") &&
+          isLecture &&
+          leftGroupUsed
+        ) {
+          const leftAudRow = audByGroup[leftGroupUsed.name];
+          if (leftAudRow && leftAudRow[pairIndex]) {
+            audience = leftAudRow[pairIndex].replace(/"/g, "").trim();
+          }
         }
       }
       if (audience === "" || audience === "-") audience = "Не вказано";

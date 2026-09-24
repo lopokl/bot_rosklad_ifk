@@ -316,11 +316,23 @@ async function sendSchedule(ctx, dayKey, dayName) {
         }
       }
 
+      const getGroupSpec = (name) => {
+        const m = String(name || '').match(/[А-ЯІЇЄҐ]+$/);
+        return m ? m[0] : '';
+      };
+      const cleanGrp = (name) => normalizeGroup(name).replace(/[\s\-_—–−]/g, '');
+
       const headers = subjRows[startRow - 1].split(",");
       const activeGroups = [];
       for (let j = 1; j < headers.length; j++) {
-        if (headers[j].replace(/"/g, "").trim() !== "") activeGroups.push(j);
+        const gClean = cleanGrp(headers[j]);
+        if (gClean && /\d{3}/.test(gClean)) {
+          activeGroups.push({ col: j, name: gClean, spec: getGroupSpec(gClean) });
+        }
       }
+      const ourCleanTarget = cleanGrp(currentGroup);
+      const ourSpec = getGroupSpec(ourCleanTarget);
+      const ourIndex = activeGroups.findIndex(g => g.col === groupCol);
 
       finalMessage += `🔥 **${currentGroup}**\n`;
 
@@ -343,43 +355,58 @@ async function sendSchedule(ctx, dayKey, dayName) {
           ? columns[groupCol].replace(/"/g, "").trim()
           : "";
         let lessonType = "🧩 Практика";
+        let isLecture = false;
+        let leftGrpUsed = null;
         const ignoredSubjects = [
           "Іноземна",
           "Фізична культура",
           "Англ",
           "Виховна",
           "Навчальна",
+          "Фізвиховання",
         ];
 
         if (lesson === "-") {
           lesson = "";
         } else if (lesson === "") {
-          for (let k = groupCol - 1; k >= 1; k--) {
-            const leftCell = columns[k]
-              ? columns[k].replace(/"/g, "").trim()
-              : "";
-            const isIgnored = ignoredSubjects.some((word) =>
-              leftCell.includes(word),
-            );
-            if (leftCell !== "" && leftCell !== "-" && !isIgnored) {
-              lesson = leftCell;
-              lessonType = "📢 Лекція";
-              break;
+          for (let k = ourIndex - 1; k >= 0; k--) {
+            const leftGrp = activeGroups[k];
+            const isSameStream = !ourSpec || !leftGrp.spec || ourSpec === leftGrp.spec || activeGroups.length <= 2;
+            if (isSameStream) {
+              const leftCell = columns[leftGrp.col] ? columns[leftGrp.col].replace(/"/g, "").trim() : "";
+              const isIgnored = ignoredSubjects.some((w) => leftCell.includes(w));
+              if (leftCell !== "" && leftCell !== "-" && !isIgnored) {
+                lesson = leftCell;
+                lessonType = "📢 Лекція";
+                isLecture = true;
+                leftGrpUsed = leftGrp;
+                break;
+              }
             }
           }
         } else {
-          const ourIndex = activeGroups.indexOf(groupCol);
-          if (ourIndex !== -1 && ourIndex < activeGroups.length - 1) {
-            const nextGroupCol = activeGroups[ourIndex + 1];
-            const nextGroupCell = columns[nextGroupCol]
-              ? columns[nextGroupCol].replace(/"/g, "").trim()
-              : "";
-            const isIgnored = ignoredSubjects.some((word) =>
-              lesson.includes(word),
-            );
-            if (nextGroupCell === "" && !isIgnored) {
+          const isIgnored = ignoredSubjects.some((w) => lesson.includes(w));
+          if (!isIgnored) {
+            if (/лекц/i.test(lesson)) {
               lessonType = "📢 Лекція";
+              isLecture = true;
+            } else {
+              for (let k = ourIndex + 1; k < activeGroups.length; k++) {
+                const rightGrp = activeGroups[k];
+                const isSameStream = !ourSpec || !rightGrp.spec || ourSpec === rightGrp.spec || activeGroups.length <= 2;
+                if (isSameStream) {
+                  const rightCell = columns[rightGrp.col] ? columns[rightGrp.col].replace(/"/g, "").trim() : "";
+                  if (rightCell === "" || rightCell === "-") {
+                    lessonType = "📢 Лекція";
+                    isLecture = true;
+                    break;
+                  }
+                }
+              }
             }
+          }
+          if (/підгруп|і п|іі п/i.test(lesson)) {
+            lessonType = "👥 Підгрупи";
           }
         }
 
