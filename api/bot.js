@@ -248,16 +248,20 @@ async function sendSchedule(ctx, dayKey, dayName) {
     }
 
     let headerDate = "";
+    let studyMode = "";
     const groupResults = [];
 
     for (let currentGroup of targetGroups) {
       const res = await getScheduleForDayAndGroup(dayKey, currentGroup);
       if (res && res.date && !headerDate) headerDate = res.date;
+      if (res && res.studyMode && !studyMode) studyMode = res.studyMode;
       groupResults.push(res);
     }
 
     const displayDate = headerDate || dayName;
-    let finalMessage = `🗓 Розклад на **${displayDate}**\n🔧 Режим: ${chatModeText} (${targetGroups.join(", ")})\n\n`;
+    let finalMessage = `🗓 Розклад на **${displayDate}**\n🔧 Режим: ${chatModeText} (${targetGroups.join(", ")})`;
+    if (studyMode) finalMessage += `\n📍 Формат: ${studyMode}`;
+    finalMessage += "\n\n";
 
     for (let res of groupResults) {
       if (res.error) {

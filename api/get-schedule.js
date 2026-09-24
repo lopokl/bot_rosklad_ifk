@@ -84,6 +84,8 @@ module.exports = async (req, res) => {
       group: result.group,
       date: result.date,
       scheduleDate: result.date,
+      isOnSite: result.isOnSite,
+      studyMode: result.studyMode,
       schedule: result.schedule,
       pairs: result.pairs,
     });

@@ -450,6 +450,7 @@
                     dateHeader.innerHTML = `
                         <span class="font-bold text-slate-200">${daysMap[dayKey] || ""}</span>
                         ${data.date ? `<span class="text-blue-400 font-mono">📅 ${data.date}</span>` : ""}
+                        ${data.studyMode ? `<span class="px-2 py-0.5 rounded-md text-[11px] font-bold ${data.isOnSite ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "bg-sky-500/20 text-sky-300 border border-sky-500/30"}">${data.studyMode}</span>` : ""}
                     `;
 
                     const pairsList = data.pairs || data.schedule || [];
