@@ -50,6 +50,7 @@ bot.use(async (ctx, next) => {
 });
 
 const { sheetsConfig, timeMap } = require("../lib/config");
+const { getScheduleForDayAndGroup } = require("../lib/schedule-parser");
 
 // ==========================================
 // ФУНКЦІЯ ДЛЯ ЗАВАНТАЖЕННЯ ДАНИХ З ТАБЛИЦІ
@@ -232,7 +233,6 @@ async function sendSchedule(ctx, dayKey, dayName) {
     let targetGroups = [];
     let chatModeText = "";
 
-    // БРОНЯ: Точно визначаємо тип чату
     if (ctx.chat.type === "private") {
       chatModeText = "👤 Приватний чат";
       const userGroup = await kv.get(`user_${ctx.from.id}`);
@@ -247,189 +247,39 @@ async function sendSchedule(ctx, dayKey, dayName) {
       targetGroups = chatGroups;
     }
 
-    const sheetId = sheetsConfig[dayKey].id;
-    const [itRows, finRows, entRows, audRows] = await Promise.all([
-      getSheetData(sheetId, sheetsConfig[dayKey].sheets.it),
-      getSheetData(sheetId, sheetsConfig[dayKey].sheets.finance),
-      getSheetData(sheetId, sheetsConfig[dayKey].sheets.enterprise),
-      getSheetData(sheetId, sheetsConfig[dayKey].sheets.audience),
-    ]);
-
-    const allDepartments = [itRows, finRows, entRows];
-
-    let targetDate = "";
-    for (let i = 0; i < Math.min(10, itRows.length); i++) {
-      const columns = itRows[i].split(",");
-      for (let col of columns) {
-        const cleanCol = col.replace(/"/g, "").trim();
-        if (
-          cleanCol.toLowerCase().includes("на ") &&
-          cleanCol.includes("202")
-        ) {
-          targetDate = cleanCol.replace(/^на\s+/i, "");
-          break;
-        }
-      }
-      if (targetDate) break;
-    }
-    if (!targetDate) targetDate = dayName;
-
-    // РЕНТГЕН: Показуємо, що саме бот зараз робить
-    let finalMessage = `🗓 Розклад на **${targetDate}**\n🔧 Режим: ${chatModeText} (${targetGroups.join(", ")})\n\n`;
+    let headerDate = "";
+    const groupResults = [];
 
     for (let currentGroup of targetGroups) {
-      let subjRows = null;
-      let groupCol = -1;
-      let startRow = -1;
+      const res = await getScheduleForDayAndGroup(dayKey, currentGroup);
+      if (res && res.date && !headerDate) headerDate = res.date;
+      groupResults.push(res);
+    }
 
-      for (let deptRows of allDepartments) {
-        for (let i = 0; i < deptRows.length; i++) {
-          const columns = deptRows[i].split(",");
-          for (let j = 0; j < columns.length; j++) {
-            // Нормалізуємо таблицю так само, щоб точно збіглося
-            if (normalizeGroup(columns[j].replace(/"/g, "")) === currentGroup) {
-              groupCol = j;
-              startRow = i + 1;
-              subjRows = deptRows;
-              break;
-            }
-          }
-          if (groupCol !== -1) break;
-        }
-        if (groupCol !== -1) break;
-      }
+    const displayDate = headerDate || dayName;
+    let finalMessage = `🗓 Розклад на **${displayDate}**\n🔧 Режим: ${chatModeText} (${targetGroups.join(", ")})\n\n`;
 
-      if (groupCol === -1 || !subjRows) {
-        finalMessage += `🔥 **${currentGroup}**\n❌ Пар немає або групу не знайдено.\n\n`;
+    for (let res of groupResults) {
+      if (res.error) {
+        finalMessage += `🔥 **${res.group || "Група"}**\n❌ ${res.error}\n\n`;
         continue;
       }
 
-      let audGroupRow = null;
-      for (let i = 0; i < audRows.length; i++) {
-        const columns = audRows[i].split(",");
-        const groupName = columns[0]
-          ? normalizeGroup(columns[0].replace(/"/g, ""))
-          : "";
-        if (groupName === currentGroup) {
-          audGroupRow = columns;
-          break;
-        }
-      }
+      finalMessage += `🔥 **${res.group}**\n`;
+      for (let p of res.pairs) {
+        const pairNum = p.pair;
+        const timeStr = p.time;
+        const lesson = p.name;
+        const lessonType = p.type || "🧩 Практика";
+        const audience = p.aud || "Дистанційно";
 
-      const getGroupSpec = (name) => {
-        const m = String(name || '').match(/[А-ЯІЇЄҐ]+$/);
-        return m ? m[0] : '';
-      };
-      const cleanGrp = (name) => normalizeGroup(name).replace(/[\s\-_—–−]/g, '');
-
-      const headers = subjRows[startRow - 1].split(",");
-      const activeGroups = [];
-      for (let j = 1; j < headers.length; j++) {
-        const gClean = cleanGrp(headers[j]);
-        if (gClean && /\d{3}/.test(gClean)) {
-          activeGroups.push({ col: j, name: gClean, spec: getGroupSpec(gClean) });
-        }
-      }
-      const ourCleanTarget = cleanGrp(currentGroup);
-      const ourSpec = getGroupSpec(ourCleanTarget);
-      const ourIndex = activeGroups.findIndex(g => g.col === groupCol);
-
-      finalMessage += `🔥 **${currentGroup}**\n`;
-
-      for (let i = startRow; i < subjRows.length; i++) {
-        const columns = subjRows[i].split(",");
-        const pairNum = columns[0].replace(/"/g, "").trim();
-
-        if (!["1", "2", "3", "4", "5", "6"].includes(pairNum)) {
-          if (pairNum === "") {
-            const hasTextInRow = columns.some(
-              (col, index) => index > 0 && col.replace(/"/g, "").trim() !== "",
-            );
-            if (hasTextInRow) break;
-            continue;
-          }
-          break;
-        }
-
-        let lesson = columns[groupCol]
-          ? columns[groupCol].replace(/"/g, "").trim()
-          : "";
-        let lessonType = "🧩 Практика";
-        let isLecture = false;
-        let leftGrpUsed = null;
-        const ignoredSubjects = [
-          "Іноземна",
-          "Фізична культура",
-          "Англ",
-          "Виховна",
-          "Навчальна",
-          "Фізвиховання",
-        ];
-
-        if (lesson === "-") {
-          lesson = "";
-        } else if (lesson === "") {
-          for (let k = ourIndex - 1; k >= 0; k--) {
-            const leftGrp = activeGroups[k];
-            const isSameStream = !ourSpec || !leftGrp.spec || ourSpec === leftGrp.spec || activeGroups.length <= 2;
-            if (isSameStream) {
-              const leftCell = columns[leftGrp.col] ? columns[leftGrp.col].replace(/"/g, "").trim() : "";
-              const isIgnored = ignoredSubjects.some((w) => leftCell.includes(w));
-              if (leftCell !== "" && leftCell !== "-" && !isIgnored) {
-                lesson = leftCell;
-                lessonType = "📢 Лекція";
-                isLecture = true;
-                leftGrpUsed = leftGrp;
-                break;
-              }
-            }
-          }
-        } else {
-          const isIgnored = ignoredSubjects.some((w) => lesson.includes(w));
-          if (!isIgnored) {
-            if (/лекц/i.test(lesson)) {
-              lessonType = "📢 Лекція";
-              isLecture = true;
-            } else {
-              for (let k = ourIndex + 1; k < activeGroups.length; k++) {
-                const rightGrp = activeGroups[k];
-                const isSameStream = !ourSpec || !rightGrp.spec || ourSpec === rightGrp.spec || activeGroups.length <= 2;
-                if (isSameStream) {
-                  const rightCell = columns[rightGrp.col] ? columns[rightGrp.col].replace(/"/g, "").trim() : "";
-                  if (rightCell === "" || rightCell === "-") {
-                    lessonType = "📢 Лекція";
-                    isLecture = true;
-                    break;
-                  }
-                }
-              }
-            }
-          }
-          if (/підгруп|і п|іі п/i.test(lesson)) {
-            lessonType = "👥 Підгрупи";
-          }
-        }
-
-        let audience = "Не вказано";
-        if (lesson !== "" && audGroupRow) {
-          const pairIndex = parseInt(pairNum, 10);
-          if (!isNaN(pairIndex) && audGroupRow[pairIndex]) {
-            audience = audGroupRow[pairIndex].replace(/"/g, "").trim();
-          }
-        }
-
-        if (audience === "" || audience === "-") audience = "Не вказано";
-        const timeStr = timeMap[pairNum] || "";
-
-        if (lesson !== "") {
-          // дизайн основний
+        if (lesson !== "Немає" && lesson !== "") {
           finalMessage += `🔹 *Пара ${pairNum}* |  ⏳ _${timeStr}_\n`;
           finalMessage += `📚 *${lesson}*\n`;
           finalMessage += `🏷 Формат: _${lessonType}_\n`;
           finalMessage += `🚪 Аудиторія: \`${audience}\`\n`;
-          finalMessage += `➖➖➖➖➖➖➖➖➖➖\n`; // Розділювач між парами
+          finalMessage += `➖➖➖➖➖➖➖➖➖➖\n`;
         } else {
-          // Дизайн для немає пари
           finalMessage += `🔸 *Пара ${pairNum}* |  ⏳ _${timeStr}_\n`;
           finalMessage += `☕ _Немає пари_\n`;
           finalMessage += `➖➖➖➖➖➖➖➖➖➖\n`;
