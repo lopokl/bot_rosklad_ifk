@@ -1,125 +1,108 @@
 const { Telegraf, Markup } = require("telegraf");
-const { kv } = require("@vercel/kv");
+let kv;
+try {
+  kv = require("@vercel/kv").kv;
+} catch (e) {
+  kv = {
+    get: async () => null,
+    set: async () => {},
+    sadd: async () => {},
+    incr: async () => 1,
+    expire: async () => {},
+    lpush: async () => {},
+    ltrim: async () => {},
+  };
+}
+
+const { sheetsConfig, timeMap } = require("../lib/config");
+const { getScheduleForDayAndGroup, cleanGroupName } = require("../lib/schedule-parser");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
+
+const APP_BASE_URL = process.env.APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://bot-rosklad-ifk.vercel.app");
+
 bot.catch((err, ctx) => {
-  console.error('Unhandled bot error:', err);
+  console.error("Unhandled bot error:", err);
   try {
-    ctx.reply('⚠️ Сервіс тимчасово оновлюється або база даних налаштовується. Спробуйте через хвилину! 🔄');
+    ctx.reply(
+      "⚠️ Сервіс тимчасово оновлюється або база даних налаштовується. Спробуйте через хвилину! 🔄",
+    );
   } catch (e) {}
 });
 
-
+// ==========================================
+// 🛡 MIDDLEWARE: ТЕХНІЧНІ РОБОТИ ТА КАНІКУЛИ
+// ==========================================
 bot.use(async (ctx, next) => {
   try {
     if (!ctx.from) return next();
 
-    // Дістаємо налаштування з бази
     const config = await kv.get("app_config");
 
-    // 1. ПЕРЕВІРКА: ТЕХНІЧНІ РОБОТИ
     if (config && config.maintenance) {
-      // Якщо пише Адмін — пропускаємо його (щоб ти міг тестувати бота)
-      if (String(ctx.from.id) === process.env.ADMIN_ID) {
+      if (String(ctx.from.id) === String(process.env.ADMIN_ID)) {
         return next();
       }
-      // Всім іншим блокуємо роботу бота
       return ctx.reply(
         "🛠 *Бот зараз на технічному оновленні!*\n\nМи додаємо нові фічі. Повернемося зовсім скоро 🚀",
         { parse_mode: "Markdown" },
       );
     }
 
-    // 2. ПЕРЕВІРКА: КАНІКУЛИ
     if (config && config.vacation) {
-      if (String(ctx.from.id) === process.env.ADMIN_ID) {
+      if (String(ctx.from.id) === String(process.env.ADMIN_ID)) {
         return next();
       }
-      // Щоб бот не видавав розклад на канікулах
       return ctx.reply(
         "🌴 *Ура, канікули!*\n\nПар немає, час відпочивати. Набирайся сил! 😎🍹",
         { parse_mode: "Markdown" },
       );
     }
   } catch (e) {
-    console.error("Помилка охоронця:", e);
+    console.error("Помилка middleware:", e);
   }
-
-  // Якщо все добре (немає тех. робіт і канікул) — пускаємо команду далі!
   return next();
 });
 
-const { sheetsConfig, timeMap } = require("../lib/config");
-const { getScheduleForDayAndGroup } = require("../lib/schedule-parser");
-
 // ==========================================
-// ФУНКЦІЯ ДЛЯ ЗАВАНТАЖЕННЯ ДАНИХ З ТАБЛИЦІ
-// ==========================================
-
-async function getSheetData(sheetId, gid = "0") {
-  // Створюємо унікальний ключ для цієї таблиці
-  const cacheKey = `cache_${sheetId}_${gid}`;
-
-  // 1. Спочатку шукаємо в швидкій пам'яті (KV)
-  const cachedData = await kv.get(cacheKey);
-  if (cachedData) {
-    return cachedData; // Блискавичне повернення!
-  }
-
-  // 2. Якщо в кеші пусто (або пройшла 1 година) - йдемо в Google
-  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
-  const response = await fetch(url);
-  const textData = await response.text();
-  const rows = textData.split("\n");
-
-  // 3. Зберігаємо результат у кеш на 3600 секунд (1 годину)
-  await kv.set(cacheKey, rows, { ex: 3600 });
-
-  return rows;
-}
-
-// 🛡 АВТО-ПЕРЕКЛАДАЧ (Виправляє англійські літери на українські)
-function normalizeGroup(name) {
-  const latinToCyrillic = {
-    A: "А",
-    B: "В",
-    C: "С",
-    E: "Е",
-    H: "Н",
-    I: "І",
-    K: "К",
-    M: "М",
-    O: "О",
-    P: "Р",
-    T: "Т",
-    X: "Х",
-  };
-  return name
-    .toUpperCase()
-    .replace(/[ABCEHIKMOPTX]/g, (m) => latinToCyrillic[m])
-    .trim();
-}
-
-// ==========================================
-// АВТО-СКАНЕР ГРУП (З таблиці аудиторій)
+// ДЕКОДУВАННЯ ТА СПИСОК ГРУП
 // ==========================================
 async function getAvailableGroups() {
+  const cacheKey = "cache_available_groups_list";
   try {
-    const rows = await getSheetData(
-      sheetsConfig.mon.id,
-      sheetsConfig.mon.sheets.audience,
-    );
-    let groups = [];
-    for (let row of rows) {
-      const firstCell = row.split(",")[0].replace(/"/g, "").trim();
-      if (/^\d{3}.*-[А-ЯІЇЄA-Z]/i.test(firstCell)) {
+    const cached = await kv.get(cacheKey);
+    if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+  } catch (e) {}
+
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${sheetsConfig.mon.id}/export?format=csv&gid=${sheetsConfig.mon.sheets.audience}`;
+    const res = await fetch(url);
+    const text = await res.text();
+    const rows = text.split("\n");
+    const groups = [];
+
+    for (let r of rows) {
+      const firstCell = r.split(",")[0].replace(/"/g, "").trim();
+      if (/^\d{3}/.test(firstCell)) {
         if (!groups.includes(firstCell)) groups.push(firstCell);
       }
     }
-    return groups;
-  } catch (error) {
-    return ["306-К", "307-К"];
+
+    if (groups.length > 0) {
+      try {
+        await kv.set(cacheKey, groups, { ex: 3600 });
+      } catch (e) {}
+      return groups;
+    }
+  } catch (e) {
+    console.error("Error fetching available groups:", e);
   }
+
+  return [
+    "101-О", "107-І", "108-І", "109-К", "110-К",
+    "208-І", "209-І", "210-К", "211-К",
+    "308-К", "309-К", "406-К", "407-К"
+  ];
 }
 
 function chunkArray(arr, size) {
@@ -130,21 +113,213 @@ function chunkArray(arr, size) {
   return result;
 }
 
+function getMainKeyboard(ctx) {
+  return Markup.keyboard([
+    ["📅 Сьогодні", "🗓 Завтра"],
+    ["Понеділок", "Вівторок", "Середа"],
+    ["Четвер", "П'ятниця", "Субота"],
+    ["✏️ Змінити групу", "⚙️ Налаштування"],
+  ]).resize();
+}
+
+function getCourseSelectionKeyboard() {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback("1️⃣ 1 курс", "course_1"),
+      Markup.button.callback("2️⃣ 2 курс", "course_2"),
+    ],
+    [
+      Markup.button.callback("3️⃣ 3 курс", "course_3"),
+      Markup.button.callback("4️⃣ 4 курс", "course_4"),
+    ],
+    [
+      Markup.button.callback("📋 Всі групи списком", "course_all"),
+    ],
+  ]);
+}
+
+function getKyivDayKey(offsetDays = 0) {
+  const now = new Date();
+  const targetDate = new Date(now.getTime() + offsetDays * 24 * 60 * 60 * 1000);
+  const kyivDay = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Kyiv",
+    weekday: "short",
+  }).format(targetDate).toLowerCase();
+
+  const map = {
+    mon: "mon",
+    tue: "tue",
+    wed: "wed",
+    thu: "thu",
+    fri: "fri",
+    sat: "sat",
+    sun: "mon",
+  };
+  return map[kyivDay] || "mon";
+}
+
 // ==========================================
-// КОМАНДИ НАЛАШТУВАННЯ
+// 🚀 КОМАНДА /START ТА ЗМІНА ГРУПИ
 // ==========================================
+async function promptGroupSelection(ctx, isWelcome = false) {
+  let text = isWelcome
+    ? `👋 **Привіт, ${ctx.from.first_name || "студенте"}!**\nЯ бот розкладу коледжу.\n\n👇 **Обери свій курс**, щоб обрати групу, або просто **напиши назву групи у чат** (наприклад, \`407-К\`):`
+    : `🎓 **Обери свій курс**, або напиши назву групи у чат:`;
+
+  return ctx.reply(text, {
+    parse_mode: "Markdown",
+    ...getCourseSelectionKeyboard(),
+  });
+}
+
 bot.command("start", async (ctx) => {
-  if (ctx.chat.type !== "private") return; // В групах /start не показує кнопки
-  await ctx.reply("🔄 Завантажую список...");
-  const groups = await getAvailableGroups();
+  if (ctx.chat.type !== "private") return;
+  try {
+    await kv.sadd("bot_users", ctx.from.id);
+  } catch (e) {}
+
+  const existingGroup = await kv.get(`user_${ctx.from.id}`);
+  if (existingGroup) {
+    return ctx.reply(
+      `👋 **Привіт, ${ctx.from.first_name || "студенте"}!**\nТвоя збережена група: **${existingGroup}**.\n\nОбери день для перегляду розкладу або налаштуй бота:`,
+      { parse_mode: "Markdown", ...getMainKeyboard(ctx) },
+    );
+  }
+
+  return promptGroupSelection(ctx, true);
+});
+
+bot.command(["group", "change_group"], async (ctx) => {
+  if (ctx.chat.type !== "private") return;
+  return promptGroupSelection(ctx, false);
+});
+
+bot.hears(/^(✏️ )?змінити групу$/i, async (ctx) => {
+  if (ctx.chat.type !== "private") return;
+  return promptGroupSelection(ctx, false);
+});
+
+// ==========================================
+// ⚙️ НАЛАШТУВАННЯ
+// ==========================================
+async function sendSettings(ctx) {
+  if (ctx.chat.type !== "private") return;
+  const currentGroup = (await kv.get(`user_${ctx.from.id}`)) || "Не обрано";
+  const appUrl = `${APP_BASE_URL}/app.html?userId=${ctx.from.id}&group=${encodeURIComponent(currentGroup)}`;
+
+  const text = `⚙️ **Налаштування бота**\n\n` +
+    `👤 **Користувач:** ${ctx.from.first_name || "Студент"} ${ctx.from.username ? `(@${ctx.from.username})` : ""}\n` +
+    `🎓 **Твоя група:** **${currentGroup}**\n` +
+    `🆔 **Твій ID:** \`${ctx.from.id}\`\n\n` +
+    `Оберіть дію нижче:`;
+
+  return ctx.reply(text, {
+    parse_mode: "Markdown",
+    ...Markup.inlineKeyboard([
+      [Markup.button.callback("✏️ Змінити групу", "action_change_group")],
+      [Markup.button.webApp("📱 Відкрити розклад у Mini App", appUrl)],
+    ]),
+  });
+}
+
+bot.command(["settings", "menu"], async (ctx) => {
+  if (ctx.chat.type === "private") {
+    await ctx.reply("📋 Головне меню активовано:", getMainKeyboard(ctx));
+    return sendSettings(ctx);
+  } else {
+    return ctx.reply("📋 Використовуйте команди днів: /mon, /tue, /wed, /thu, /fri, /sat або /setgroups");
+  }
+});
+
+bot.hears(/^(⚙️ )?налаштування$/i, async (ctx) => {
+  return sendSettings(ctx);
+});
+
+// ==========================================
+// 🔄 ОБРОБНИКИ ІНЛАЙН-КНОПОК ВИБОРУ КУРСУ ТА ГРУПИ
+// ==========================================
+bot.action("action_change_group", async (ctx) => {
+  await ctx.answerCbQuery();
+  return promptGroupSelection(ctx, false);
+});
+
+bot.action("back_to_courses", async (ctx) => {
+  await ctx.answerCbQuery();
+  return ctx.editMessageText(
+    "🎓 **Обери свій курс**, або напиши назву групи у чат:",
+    { parse_mode: "Markdown", ...getCourseSelectionKeyboard() },
+  );
+});
+
+bot.action(/^course_(\d|all)$/, async (ctx) => {
+  await ctx.answerCbQuery("Завантажую групи...");
+  const cNum = ctx.match[1];
+  const allGroups = await getAvailableGroups();
+
+  let filtered = allGroups;
+  if (cNum !== "all") {
+    filtered = allGroups.filter((g) => g.startsWith(cNum));
+  }
+
+  const buttons = filtered.map((g) =>
+    Markup.button.callback(g, `selgrp_${g}`),
+  );
+  const rows = chunkArray(buttons, 3);
+  rows.push([Markup.button.callback("🔙 Назад до курсів", "back_to_courses")]);
+
+  return ctx.editMessageText(
+    `🎓 **Оберіть вашу групу (${cNum === "all" ? "всі курси" : cNum + " курс"}):**\nАбо введіть назву групи вручну:`,
+    { parse_mode: "Markdown", ...Markup.inlineKeyboard(rows) },
+  );
+});
+
+bot.action(/^selgrp_(.+)$/, async (ctx) => {
+  await ctx.answerCbQuery("Групу збережено! 🎉");
+  const chosenGroup = ctx.match[1];
+
+  await kv.set(`user_${ctx.from.id}`, chosenGroup);
+  try {
+    await kv.sadd("bot_users", ctx.from.id);
+  } catch (e) {}
+
+  await ctx.deleteMessage().catch(() => {});
   return ctx.reply(
-    "Обери свою групу:",
-    Markup.keyboard(chunkArray(groups, 3)).resize(),
+    `✅ **Твою групу успішно встановлено: ${chosenGroup}** 🎉\n\nТепер натискай кнопку потрібного дня тижня нижче:`,
+    { parse_mode: "Markdown", ...getMainKeyboard(ctx) },
   );
 });
 
 // ==========================================
-// КОМАНДА АДМІНІСТРАТОРА (/admin та /admin_test)
+// ✍️ ТЕКСТОВИЙ ВВІД НАЗВИ ГРУПИ В ЧАТ
+// ==========================================
+bot.hears(/^\d{3}.*/, async (ctx) => {
+  if (ctx.chat.type !== "private") return;
+  const input = ctx.message.text.trim();
+  const cleanInput = cleanGroupName(input);
+
+  const allGroups = await getAvailableGroups();
+  let matchedGroup = allGroups.find(
+    (g) => cleanGroupName(g) === cleanInput,
+  );
+
+  if (!matchedGroup) {
+    // Якщо не знайшли точного збігу, але формат правильний — беремо введений
+    matchedGroup = input.toUpperCase().replace(/\s+/g, "");
+  }
+
+  await kv.set(`user_${ctx.from.id}`, matchedGroup);
+  try {
+    await kv.sadd("bot_users", ctx.from.id);
+  } catch (e) {}
+
+  return ctx.reply(
+    `✅ **Твою групу успішно встановлено: ${matchedGroup}** 🎉\n\nТепер обери день тижня в меню нижче:`,
+    { parse_mode: "Markdown", ...getMainKeyboard(ctx) },
+  );
+});
+
+// ==========================================
+// 👑 АДМІН-ПАНЕЛЬ
 // ==========================================
 const handleAdmin = (ctx) => {
   if (String(ctx.from.id) === String(process.env.ADMIN_ID)) {
@@ -164,34 +339,8 @@ const handleAdmin = (ctx) => {
 bot.command("admin", handleAdmin);
 bot.command("admin_test", handleAdmin);
 
-bot.command("menu", (ctx) => {
-  const kb = [
-    ["понеділок", "вівторок"],
-    ["середа", "четвер", "п'ятниця"],
-    ["субота"],
-  ];
-  if (ctx.chat.type === "private") {
-    kb.push(["Змінити групу", "⚙️ Налаштування"]); // Додали налаштування сюди!
-  }
-  return ctx.reply("Оберіть дію:", Markup.keyboard(kb).resize());
-});
-
-// Обробляємо натискання на кнопку "Налаштування"
-bot.hears("⚙️ Налаштування", (ctx) => {
-  if (ctx.chat.type !== "private") return;
-  return ctx.reply(
-    "Відкрийте панель налаштувань:",
-    Markup.inlineKeyboard([
-      Markup.button.webApp(
-        "Відкрити Налаштування",
-        `${APP_BASE_URL}/settings.html`,
-      ), // ЗАМІНИ НА СВІЙ ДОМЕН!
-    ]),
-  );
-});
-
 // ==========================================
-// НАЛАШТУВАННЯ ДЛЯ ГРУП
+// 👥 НАЛАШТУВАННЯ ДЛЯ ГРУПОВИХ ЧАТІВ
 // ==========================================
 bot.command("setgroups", async (ctx) => {
   if (ctx.chat.type === "private") {
@@ -205,19 +354,21 @@ bot.command("setgroups", async (ctx) => {
 
   const args = ctx.message.text.split(" ").slice(1).join(" ");
   if (!args) {
-    return ctx.reply("Вкажіть групи. Приклад:\n`/setgroups 306-К, 101-О`", {
-      parse_mode: "Markdown",
-    });
+    return ctx.reply(
+      "Вкажіть групи. Приклад:\n`/setgroups 407-К, 406-К`",
+      { parse_mode: "Markdown" },
+    );
   }
 
-  // Розділяємо і по комах, і по пробілах, щоб точно зловити все!
   const groups = args
     .split(/[, ]+/)
     .filter((g) => g)
-    .map(normalizeGroup);
+    .map((g) => g.trim());
 
   await kv.set(`chat_${ctx.chat.id}_groups`, groups);
-  await kv.sadd("active_chats", ctx.chat.id); // Для будильника
+  try {
+    await kv.sadd("active_chats", ctx.chat.id);
+  } catch (e) {}
 
   return ctx.reply(
     `✅ Збережено! Групи для цього чату: **${groups.join(", ")}**`,
@@ -226,7 +377,7 @@ bot.command("setgroups", async (ctx) => {
 });
 
 // ==========================================
-// ОСНОВНА ФУНКЦІЯ (З рентгеном чату)
+// 📅 ВІДПРАВКА РОЗКЛАДУ
 // ==========================================
 async function sendSchedule(ctx, dayKey, dayName) {
   try {
@@ -236,14 +387,19 @@ async function sendSchedule(ctx, dayKey, dayName) {
     if (ctx.chat.type === "private") {
       chatModeText = "👤 Приватний чат";
       const userGroup = await kv.get(`user_${ctx.from.id}`);
-      if (!userGroup)
-        return ctx.reply("⚠️ Ти ще не обрав групу! Натисни /start.");
+      if (!userGroup) {
+        return ctx.reply(
+          "⚠️ Ти ще не обрав групу! Обери свій курс:",
+          { parse_mode: "Markdown", ...getCourseSelectionKeyboard() },
+        );
+      }
       targetGroups = [userGroup];
     } else {
       chatModeText = "👥 Груповий чат";
       const chatGroups = await kv.get(`chat_${ctx.chat.id}_groups`);
-      if (!chatGroups || chatGroups.length === 0)
+      if (!chatGroups || chatGroups.length === 0) {
         return ctx.reply("Адмін ще не налаштував групи. Введіть /setgroups");
+      }
       targetGroups = chatGroups;
     }
 
@@ -293,52 +449,62 @@ async function sendSchedule(ctx, dayKey, dayName) {
 
     const sentMsg = await ctx.replyWithMarkdown(finalMessage);
 
-    // ЗАКРІПЛЕННЯ В ГРУПІ
     if (ctx.chat.type !== "private") {
-      const oldMsgId = await kv.get(`chat_${ctx.chat.id}_pinned_msg`);
-      if (oldMsgId) {
-        try {
-          await ctx.telegram.unpinChatMessage(ctx.chat.id, oldMsgId);
-        } catch (e) {}
-      }
-      await ctx.telegram.pinChatMessage(ctx.chat.id, sentMsg.message_id, {
-        disable_notification: true,
-      });
-      await kv.set(`chat_${ctx.chat.id}_pinned_msg`, sentMsg.message_id);
+      try {
+        const oldMsgId = await kv.get(`chat_${ctx.chat.id}_pinned_msg`);
+        if (oldMsgId) {
+          await ctx.telegram.unpinChatMessage(ctx.chat.id, oldMsgId).catch(() => {});
+        }
+        await ctx.telegram.pinChatMessage(ctx.chat.id, sentMsg.message_id, {
+          disable_notification: true,
+        }).catch(() => {});
+        await kv.set(`chat_${ctx.chat.id}_pinned_msg`, sentMsg.message_id);
+      } catch (e) {}
     }
   } catch (error) {
-    console.error(`Помилка:`, error);
+    console.error("Помилка sendSchedule:", error);
     await ctx.reply("Виникла помилка під час завантаження розкладу.");
   }
 }
 
-bot.hears("понеділок", (ctx) => sendSchedule(ctx, "mon", "Понеділок"));
-bot.hears("вівторок", (ctx) => sendSchedule(ctx, "tue", "Вівторок"));
-bot.hears("середа", (ctx) => sendSchedule(ctx, "wed", "Середу"));
-bot.hears("четвер", (ctx) => sendSchedule(ctx, "thu", "Четвер"));
-bot.hears("п'ятниця", (ctx) => sendSchedule(ctx, "fri", "П'ятницю"));
-bot.hears("субота", (ctx) => sendSchedule(ctx, "sat", "Суботу"));
-
 // ==========================================
-// ОБРОБКА КНОПКИ "РОЗКЛАД НА СЬОГОДНІ"
+// 📆 ОБРОБНИКИ КОМАНД І КНОПОК ДНІВ ТИЖНЯ
 // ==========================================
-bot.action(/today_(mon|tue|wed|thu|fri|sat)/, async (ctx) => {
-  const dayKey = ctx.match[1];
-  const daysNames = {
-    mon: "Понеділок",
-    tue: "Вівторок",
-    wed: "Середу",
-    thu: "Четвер",
-    fri: "П'ятницю",
-    sat: "Суботу",
-  };
-
-  // Прибираємо значок "завантаження" з кнопки
-  await ctx.answerCbQuery("Завантажую розклад...");
-
-  // Запускаємо ту саму ідеальну функцію, яку ми написали раніше!
-  await sendSchedule(ctx, dayKey, daysNames[dayKey]);
+bot.hears(/^(📅 )?сьогодні$/i, (ctx) => {
+  const dayKey = getKyivDayKey(0);
+  sendSchedule(ctx, dayKey, "Сьогодні");
 });
+bot.command("today", (ctx) => {
+  const dayKey = getKyivDayKey(0);
+  sendSchedule(ctx, dayKey, "Сьогодні");
+});
+
+bot.hears(/^(🗓 )?завтра$/i, (ctx) => {
+  const dayKey = getKyivDayKey(1);
+  sendSchedule(ctx, dayKey, "Завтра");
+});
+bot.command("tomorrow", (ctx) => {
+  const dayKey = getKyivDayKey(1);
+  sendSchedule(ctx, dayKey, "Завтра");
+});
+
+bot.hears(/^понеділок$/i, (ctx) => sendSchedule(ctx, "mon", "Понеділок"));
+bot.command("mon", (ctx) => sendSchedule(ctx, "mon", "Понеділок"));
+
+bot.hears(/^вівторок$/i, (ctx) => sendSchedule(ctx, "tue", "Вівторок"));
+bot.command("tue", (ctx) => sendSchedule(ctx, "tue", "Вівторок"));
+
+bot.hears(/^середа$/i, (ctx) => sendSchedule(ctx, "wed", "Середу"));
+bot.command("wed", (ctx) => sendSchedule(ctx, "wed", "Середу"));
+
+bot.hears(/^четвер$/i, (ctx) => sendSchedule(ctx, "thu", "Четвер"));
+bot.command("thu", (ctx) => sendSchedule(ctx, "thu", "Четвер"));
+
+bot.hears(/^п'?ятниця$/i, (ctx) => sendSchedule(ctx, "fri", "П'ятницю"));
+bot.command("fri", (ctx) => sendSchedule(ctx, "fri", "П'ятницю"));
+
+bot.hears(/^субота$/i, (ctx) => sendSchedule(ctx, "sat", "Суботу"));
+bot.command("sat", (ctx) => sendSchedule(ctx, "sat", "Суботу"));
 
 module.exports = async (req, res) => {
   try {
