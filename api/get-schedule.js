@@ -1,6 +1,16 @@
-const { kv } = require("@vercel/kv");
-
-// Наші налаштування (такі ж як у бота)
+let kv;
+try {
+  kv = require("@vercel/kv").kv;
+} catch (e) {
+  kv = {
+    get: async () => null,
+    set: async () => {},
+    incr: async () => 1,
+    expire: async () => {},
+    lpush: async () => {},
+    ltrim: async () => {},
+  };
+}
 const { sheetsConfig, timeMap } = require("../lib/config");
 
 // ==========================================
@@ -11,9 +21,7 @@ async function getSheetData(sheetId, gid = "0") {
   try {
     const cachedData = await kv.get(cacheKey);
     if (cachedData) return cachedData;
-  } catch (e) {
-    // Якщо база даних тимчасово недоступна, продовжуємо без кешу
-  }
+  } catch (e) {}
 
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
   const response = await fetch(url);
@@ -27,9 +35,11 @@ async function getSheetData(sheetId, gid = "0") {
 }
 
 // ==========================================
-// 🛡 АВТО-ПЕРЕКЛАДАЧ (Нормалізатор)
+// 🛡 УНІВЕРСАЛЬНИЙ НОРМАЛІЗАТОР ГРУП
+// Приводить "407-К", "407–К", "407 - К ", "407K" до "407К"
 // ==========================================
-function normalizeGroup(name) {
+function cleanGroupName(str) {
+  if (!str) return "";
   const latinToCyrillic = {
     A: "А",
     B: "В",
@@ -44,9 +54,10 @@ function normalizeGroup(name) {
     T: "Т",
     X: "Х",
   };
-  return name
+  return str
     .toUpperCase()
-    .replace(/[ABCEHIKMOPTX]/g, (m) => latinToCyrillic[m])
+    .replace(/[ABCEHIKMOPTX]/g, (m) => latinToCyrillic[m] || m)
+    .replace(/[\s\-_—–−]/g, "")
     .trim();
 }
 
@@ -99,34 +110,33 @@ module.exports = async (req, res) => {
         await kv.ltrim("recent_logs", 0, 29);
       } catch (e) {}
 
-      // Rate limit
       try {
         const limitKey = `rate_limit_${userId}`;
         const requestsCount = await kv.incr(limitKey);
         if (requestsCount === 1) {
           await kv.expire(limitKey, 60);
         }
-        if (requestsCount > 25) {
+        if (requestsCount > 35) {
           return res.status(429).json({ error: "Забагато запитів! Зачекайте хвилинку ⏳" });
         }
       } catch (e) {}
     }
 
     // --- ДІСТАЄМО ГРУПУ: або з параметру group, або з бази по userId ---
-    let userGroup = req.query.group ? decodeURIComponent(req.query.group) : null;
-    if (!userGroup && userId && userId !== "0") {
+    let rawUserGroup = req.query.group ? decodeURIComponent(req.query.group) : null;
+    if (!rawUserGroup && userId && userId !== "0") {
       try {
-        userGroup = await kv.get(`user_${userId}`);
+        rawUserGroup = await kv.get(`user_${userId}`);
       } catch (e) {}
     }
 
-    if (!userGroup) {
+    if (!rawUserGroup) {
       return res.status(404).json({
         error: "Групу не обрано. Будь ласка, вкажіть вашу групу.",
       });
     }
 
-    userGroup = normalizeGroup(userGroup);
+    const cleanTargetGroup = cleanGroupName(rawUserGroup);
 
     const sheetId = sheetsConfig[dayKey].id;
     const [itRows, finRows, entRows, audRows] = await Promise.all([
@@ -138,34 +148,49 @@ module.exports = async (req, res) => {
 
     const allDepartments = [itRows, finRows, entRows];
 
-    // Шукаємо дату
-    let targetDate = "Сьогодні";
+    // Шукаємо дату розкладу в шапці таблиці
+    let targetDate = "";
     for (let rows of allDepartments) {
       if (rows && rows.length > 0) {
-        for (let r = 0; r < Math.min(5, rows.length); r++) {
-          const m = rows[r].match(/\d{2}\.\d{2}\.\d{4}/);
+        for (let r = 0; r < Math.min(6, rows.length); r++) {
+          const m = rows[r].match(/\d{2}\.\d{2}\.\d{4}/) || rows[r].match(/\d{1,2}\s+[а-яіїєґ]+\s+\d{4}/i);
           if (m) {
             targetDate = m[0];
             break;
           }
         }
-        if (targetDate !== "Сьогодні") break;
+        if (targetDate) break;
       }
     }
 
-    // Шукаємо відділення та стовпчик групи
+    // Аудиторії: зберігаємо повний рядок (col 0 = група, col 1 = пара 1, col 2 = пара 2, ...)
+    const audByGroup = {};
+    if (audRows && audRows.length > 0) {
+      for (let row of audRows) {
+        const cols = row.split(",");
+        const gName = cleanGroupName(cols[0].replace(/"/g, ""));
+        if (gName) {
+          audByGroup[gName] = cols.map((c) => c.replace(/"/g, "").trim());
+        }
+      }
+    }
+    const audGroupRow = audByGroup[cleanTargetGroup] || [];
+
+    // Шукаємо відділення, рядок курсу та стовпчик групи ПО ВСІЙ ТАБЛИЦІ
     let targetRows = null;
     let groupCol = -1;
+    let headerRowIdx = -1;
     let headers = [];
 
     for (let rows of allDepartments) {
       if (!rows || rows.length < 3) continue;
-      for (let r = 0; r < Math.min(5, rows.length); r++) {
+      for (let r = 0; r < rows.length; r++) {
         const cols = rows[r].split(",");
         for (let c = 0; c < cols.length; c++) {
-          const cell = normalizeGroup(cols[c].replace(/"/g, "").trim());
-          if (cell === userGroup) {
+          const cell = cleanGroupName(cols[c].replace(/"/g, ""));
+          if (cell === cleanTargetGroup) {
             groupCol = c;
+            headerRowIdx = r;
             targetRows = rows;
             headers = cols;
             break;
@@ -176,33 +201,25 @@ module.exports = async (req, res) => {
       if (groupCol !== -1) break;
     }
 
-    if (groupCol === -1) {
+    if (groupCol === -1 || headerRowIdx === -1) {
       return res.status(404).json({
-        error: `Групу ${userGroup} не знайдено в таблиці на цей день.`,
+        error: `Групу ${rawUserGroup} не знайдено в таблиці на цей день.`,
       });
     }
 
-    // Аудиторії
-    const audByGroup = {};
-    if (audRows && audRows.length > 0) {
-      for (let row of audRows) {
-        const cols = row.split(",");
-        const gName = normalizeGroup(cols[0].replace(/"/g, "").trim());
-        if (gName) {
-          audByGroup[gName] = cols.slice(1).map((c) => c.replace(/"/g, "").trim());
-        }
-      }
-    }
-    const audGroupRow = audByGroup[userGroup] || [];
-
-    // Збираємо пари (1-6)
+    // Збираємо пари (1-6) ПОЧИНАЮЧИ ВІД ЗАГОЛОВКА КУРСУ
     const scheduleArray = [];
     let currentPairScan = 1;
 
-    for (let i = 0; i < targetRows.length; i++) {
+    for (let i = headerRowIdx + 1; i < targetRows.length; i++) {
       if (currentPairScan > 6) break;
       const columns = targetRows[i].split(",");
       const firstCol = columns[0].replace(/"/g, "").trim();
+
+      // Якщо натрапили на інший курс або підвал
+      if (firstCol.toLowerCase().includes("навчальна") || (!firstCol.includes(String(currentPairScan)) && columns.some((c, idx) => idx > 0 && /\d{3}/.test(c)))) {
+        break;
+      }
 
       let pairNum = "";
       if (firstCol.includes(String(currentPairScan))) {
@@ -241,8 +258,8 @@ module.exports = async (req, res) => {
             leftCell !== "-" &&
             !ignoredSubjects.some((w) => leftCell.includes(w))
           ) {
-            const leftGroupName = normalizeGroup(
-              headers[k].replace(/"/g, "").trim(),
+            const leftGroupName = cleanGroupName(
+              headers[k].replace(/"/g, ""),
             );
             const leftGroupAudRow = audByGroup[leftGroupName];
 
@@ -299,9 +316,9 @@ module.exports = async (req, res) => {
     }));
 
     return res.json({
-      group: userGroup,
-      date: targetDate,
-      scheduleDate: targetDate,
+      group: rawUserGroup,
+      date: targetDate || "Сьогодні",
+      scheduleDate: targetDate || "Сьогодні",
       schedule: scheduleArray,
       pairs: unifiedPairs,
     });
